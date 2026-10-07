@@ -1,0 +1,85 @@
+import { useEffect, useRef, useState } from 'react';
+import { inspectTab } from '../shared/client';
+import type { InspectorCommand, InspectorSession } from '../shared/types';
+import './styles.css';
+
+export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
+  const [session, setSession] = useState<InspectorSession>();
+  const [debug, setDebug] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [tabId, setTabId] = useState<number>();
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [windowId, setWindowId] = useState<number>();
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    void chrome.windows.getCurrent().then(window => { if (mounted.current) setWindowId(window.id); })
+      .catch(() => { if (mounted.current) setError('Could not identify the browser window.'); });
+    void chrome.storage.local.get('debug').then(result => { if (mounted.current) { setDebug(result.debug === true); setSettingsReady(true); } })
+      .catch(() => { if (mounted.current) { setError('Could not load settings.'); setSettingsReady(true); } });
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!session?.observing || tabId === undefined) return;
+    const timer = window.setInterval(() => {
+      void chrome.tabs.sendMessage(tabId, { type: 'FLOW_INSPECTOR', action: 'get' }).then(reply => {
+        if (mounted.current && reply?.ok) setSession(reply.session);
+      }).catch(() => { if (mounted.current) { setSession(undefined); setError('Flow tab reloaded or closed. Inspect again on the current Flow tab.'); } });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [session?.observing, tabId]);
+
+  async function run(action: InspectorCommand['action']) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await inspectTab(action, debug);
+      setSession(result.session); setTabId(result.tabId);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Inspection failed.'); }
+    finally { setBusy(false); }
+  }
+  async function copyReport() {
+    if (!session) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify({ phase: 1, history: session.history }, null, 2));
+      setNotice('Diagnostic JSON copied. Review asset identifiers before sharing.'); setError('');
+    } catch { setError('Clipboard access failed. Select and copy the JSON shown below.'); }
+  }
+  async function openPanel() {
+    // Call open directly within the user gesture; do not await a tab query first.
+    if (windowId === undefined) return;
+    try { await chrome.sidePanel.open({ windowId }); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not open side panel.'); }
+  }
+  async function toggleDebug(value: boolean) {
+    setDebug(value);
+    try { await chrome.storage.local.set({ debug: value }); }
+    catch { setError('Could not save debug setting.'); }
+  }
+  const report = session?.latest;
+  return <main>
+    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Phase 1 · DOM inspector</p></div></header>
+    <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture the actual image and menu structure before enabling download automation.</p></section>
+    <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
+    <section className="stats" aria-label="Inspection results">
+      <div><strong>{report?.candidates.length ?? '—'}</strong><span>Image candidates</span></div>
+      <div><strong>{report?.controls.filter(c => c.kind === 'more').length ?? '—'}</strong><span>More controls</span></div>
+      <div><strong>{report?.controls.filter(c => c.kind === 'download').length ?? '—'}</strong><span>Download</span></div>
+      <div><strong>{report?.controls.filter(c => c.kind === '2k').length ?? '—'}</strong><span>2K Upscaled</span></div>
+    </section>
+    <p className="hint">Candidates are unverified image elements, not a total project count. Open menus manually while observing. Closed menus may be absent from the DOM.</p>
+    <div className="actions"><button className="primary" disabled={busy || !settingsReady} onClick={() => void run('scan')}>Inspect current DOM</button><button disabled={busy || !settingsReady} onClick={() => void run(session?.observing ? 'stop' : 'observe')}>{session?.observing ? 'Stop observing' : 'Observe menu changes'}</button></div>
+    {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open inspector side panel</button>}
+    <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
+    <p className="hint">Debug changes apply on the next inspection action.</p>
+    {error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+    {session && <>
+      <div className="report-heading"><h2>DOM evidence <small>{session.history.length} snapshots</small></h2><button disabled={busy} onClick={() => void copyReport()}>Copy JSON</button></div>
+      {report?.truncated && <p className="error">Report is bounded and was truncated. Inspect a smaller visible section.</p>}
+      <details><summary>Diagnostic JSON</summary><pre tabIndex={0}>{JSON.stringify({ phase: 1, history: session.history }, null, 2)}</pre></details>
+      <button className="wide" disabled={busy} onClick={() => void run('clear')}>Clear capture history</button>
+    </>}
+    <footer>No clicks or downloads are automated in this build. Phase 2 requires verified live Flow evidence.</footer>
+  </main>;
+}

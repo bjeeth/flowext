@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Flow Bulk Downloader — Inspector",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "description": "Read-only Flow DOM inspection. Download automation is gated on verified live DOM evidence.",
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
+  "action": { "default_popup": "popup.html", "default_title": "Flow Bulk Downloader" },
+  "background": { "service_worker": "service-worker.js", "type": "module" },
+  "side_panel": { "default_path": "sidepanel.html" }
+}
