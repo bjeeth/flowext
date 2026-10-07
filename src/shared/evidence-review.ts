@@ -35,7 +35,7 @@ export function reviewEvidence(input: unknown): EvidenceReview {
         ['startedAt', 'stoppedAt'].some(key => observation[key] !== null && (!string(observation[key]) || !Number.isFinite(Date.parse(observation[key] as string)))) ||
         (observation.lastError !== null && !string(observation.lastError))) fail('observation', 'Invalid observer status.');
     else {
-      if (observation.startedAt === null) warn('Observation was never started in this session. Start Observe menu changes before operating the image menus.');
+      if (observation.startedAt === null) warn('Exported session has no observer start time. Use Start menu capture and copy live data with inspector 0.1.1 or newer.');
       if (observation.lastError) warn('An observation scan failed; inspect the extension status and recapture.');
     }
   } else warn('This capture predates observer-status metadata; whether observation started cannot be established.');
@@ -159,7 +159,7 @@ export function reviewEvidence(input: unknown): EvidenceReview {
     c.manualInteractions ||= report.manualInteraction !== null;
   }
   for (const [key, present] of Object.entries(result.coverage)) if (!present) warn(`Evidence not observed: ${key}. Inspect again rather than inventing a selector or relationship.`);
-  if (!result.coverage.manualInteractions) warn('No manual image/menu interaction was recorded. Start Observe menu changes and confirm the extension status says Observing before opening More → Download → 2K.');
+  if (!result.coverage.manualInteractions) warn('No manual image/menu interaction was recorded. Use Start menu capture and confirm the extension status says Observing before opening More → Download → 2K.');
   warn('Generated-image identity, identifier stability, portal ownership, and action semantics require human review of the real capture. Labels and single-image container heuristics do not prove them.');
   warn('Phase 1 does not observe browser download completion. Keep the manual download timing/result note separate; Phase 2 must use actual download lifecycle events.');
   result.valid = true;

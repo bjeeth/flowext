@@ -11,7 +11,7 @@ export const PROBES = {
   names: {
     more: /^(?:more(?: options| actions)?|more_horiz|more_vert|⋮|…|\.\.\.)$/i,
     download: /^download(?: image)?$/i,
-    '2k': /^2k\s+upscaled$/i,
+    '2k': /^2k\s*upscaled$/i,
     original: /^original(?: size)?$/i,
   },
   referenceAttributes: ['aria-controls', 'aria-owns', 'aria-labelledby', 'aria-describedby'],

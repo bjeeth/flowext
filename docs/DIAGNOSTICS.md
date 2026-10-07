@@ -1,6 +1,6 @@
 # Real Flow evidence handoff
 
-Run the exact seven-step **Phase 1 live inspection procedure** in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Stop observation and copy JSON. No automatic click, network call, or download monitoring occurs.
+Run the exact seven-step **Phase 1 live inspection procedure** in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Use **Start menu capture** before opening menus, then **Stop and copy JSON** afterward. No automatic click, network call, or download monitoring occurs.
 
 Reload the extension AND the Flow page after installing this updated build. Older injected content scripts remain alive until the page reloads. This build emits `formatVersion: 2` and `schemaVersion: 2`; legacy v1 reports are not padded with inferred evidence.
 
@@ -48,6 +48,8 @@ npm run inspect:evidence -- /path/to/real-flow-capture.json
 ```
 
 The command checks format, scope, node states, image loading metadata, graph/snapshot references, and bounds. It prints coverage and missing evidence rather than raw identifiers. It reads the file only; it executes no selectors, HTML, scripts, or Flow actions and makes no network requests.
+
+Version 0.1.1 fetches live bound-tab state before copying, synchronizes idle popup/panel views, and refuses copying until capture started. Optional `buildVersion` and `captureProtocol` metadata identify the live inspector protocol; old saved v2 files remain reviewable. Reopening a view restores the live session. Clearing while actively observing is rejected so an outdated view cannot erase a running capture.
 
 The optional `observation` metadata records whether the observer is active, start/stop times, and its last scan error. Old v2 captures without it remain accepted, with an explicit warning. More coverage distinguishes visible and hidden card-associated controls.
 

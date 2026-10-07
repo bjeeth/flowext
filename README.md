@@ -45,21 +45,23 @@ The cloud Chromium smoke test was attempted but blocked by managed `ExtensionIns
 4. Click **Load unpacked** and select the **dist** folder containing `manifest.json` (or `flow-bulk-downloader/dist` inside the supplied source/build ZIP).
 5. Pin **Flow Bulk Downloader — Inspector** in the browser toolbar.
 6. Open `https://flow.google.com/` and your authenticated image project.
-7. Click the toolbar icon, then **Inspect current DOM**.
+7. Click the toolbar icon, then **Start menu capture**.
 
 Minimum Chrome/Edge version is 116 for the side panel API. If Flow redirects to another hostname, inspection refuses to run; record the final hostname so the supported scope can be reviewed. Do not broaden the extension to all websites.
 
 ## Phase 1 live inspection procedure
 
-1. Start with one generated image visible and all menus closed. Click **Inspect current DOM**.
-2. Enable debug logging if wanted, then click **Observe menu changes**. Page DevTools will show `[FLOW-BULK][DISCOVERY]`, `[FLOW-BULK][INSPECTION]`, and errors prefixed `[FLOW-BULK][ERROR]`.
+Version **0.1.1** fixes stale popup/side-panel exports and makes starting capture the primary action. Reload the extension and refresh Flow before this procedure; the UI detects older injected scripts. This UI change does not add download automation.
+
+1. Start with one generated image visible and all menus closed. Click **Take DOM snapshot** if you want a baseline preview; opening the extension already attaches to the live page session.
+2. Enable debug logging if wanted, then click **Start menu capture** and confirm the status says **Observing DOM changes**. Page DevTools will show `[FLOW-BULK][DISCOVERY]`, `[FLOW-BULK][INSPECTION]`, and errors prefixed `[FLOW-BULK][ERROR]`.
 3. Open the image's More menu manually. Wait at least half a second for a snapshot.
 4. Open/hover **Download** as required by the actual UI. Wait for **2K Upscaled** to be visible. The inspector does not operate these controls.
 5. Inspect both enabled and unavailable/processing states where present. Manually scroll the asset collection to expose more images and capture possible scroll-region changes.
-6. Stop observing and click **Copy JSON**. Review identifiers, then supply the JSON to development. The inspector records only recognized workflow labels, structural metadata, and allowlisted attributes; it excludes full HTML, project URLs, media URLs, prompts, cookies, and tokens. Arbitrary identifier values are not guaranteed free of sensitive information.
+6. Click **Stop and copy JSON** (or **Stop observing**, then **Copy JSON**). Review identifiers, then supply the JSON to development. The inspector records only recognized workflow labels, structural metadata, and allowlisted attributes; it excludes full HTML, project URLs, media URLs, prompts, cookies, and tokens. Arbitrary identifier values are not guaranteed free of sensitive information.
 7. Separately perform one manual 2K download and note whether it starts immediately or after processing, expected filename/format, approximate timing, and success/failure UI. Do not share signed download URLs or session credentials.
 
-Keep the popup open while capturing, or use **Open inspector side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopen and scan to read the current session. **Clear capture history** stops observing and resets all pinned/rolling captures to a fresh baseline. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
+Keep the popup open while capturing, or use **Open inspector side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopening the popup or panel attaches to the current session; both views synchronize even when their previous state was idle. Copy fetches live bound-tab state and refuses an unstarted capture. Commands remain attached to the captured tab rather than following an unrelated active tab. **Clear capture history** is unavailable while observing. After observation stops, it resets all pinned/rolling captures to a fresh baseline and requires starting capture again. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
 
 ## Architecture and selectors
 
@@ -111,6 +113,7 @@ Later work: `FlowDOMAdapter`, download-event correlation (including unrelated do
 - **No candidates:** images may not be rendered as `img`, not yet loaded, hidden, or in a shadow root/iframe. Capture a report and inspect the actual DOM; zero candidates does not establish an empty project.
 - **No More/Download/2K:** manually open menus; icon-only, localized, or changed names need inspection. A closed menu can correctly yield zero controls.
 - **Unexpected count:** candidates are not verified assets. Inspect container relationships, duplicate thumbnails, and virtualization before implementing discovery.
+- **Older inspector / stale capture:** reload the extension and refresh Flow; then use **Start menu capture**. The panel must say **Observing DOM changes** before you open image menus. Do not clear history before copying.
 - **Scan stale after rebuilding:** reload the extension and Flow tab, then inspect again.
 - **Copy denied:** expand **Diagnostic JSON**, select its text, and copy manually.
 - **Observation ended:** restart it; observation has a deliberate ten-minute limit.

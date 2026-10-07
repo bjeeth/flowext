@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { exportCapture } from '../shared/capture';
-import { inspectTab } from '../shared/client';
+import { inspectTab, liveMenuCapture } from '../shared/client';
 import type { InspectorCommand, InspectorSession } from '../shared/types';
 import './styles.css';
 
@@ -15,38 +15,81 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [settingsReady, setSettingsReady] = useState(false);
   const [windowId, setWindowId] = useState<number>();
   const mounted = useRef(true);
+  const commandVersion = useRef(0);
   useEffect(() => {
     mounted.current = true;
     void chrome.windows.getCurrent().then(window => { if (mounted.current) setWindowId(window.id); })
       .catch(() => { if (mounted.current) setError('Could not identify the browser window.'); });
-    void chrome.storage.local.get('debug').then(result => { if (mounted.current) { setDebug(result.debug === true); setSettingsReady(true); } })
-      .catch(() => { if (mounted.current) { setError('Could not load settings.'); setSettingsReady(true); } });
+    void (async () => {
+      try {
+        const result = await chrome.storage.local.get('debug');
+        const preference = result.debug === true;
+        if (!mounted.current) return;
+        setDebug(preference);
+        // Reopening either surface attaches to the actual page session, without starting it.
+        const current = await inspectTab('get', preference);
+        if (mounted.current) { setSession(current.session); setTabId(current.tabId); }
+      } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Could not connect to Flow.'); }
+      finally { if (mounted.current) setSettingsReady(true); }
+    })();
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    if (!session?.observing || tabId === undefined) return;
+    if (tabId === undefined) return;
+    let inFlight = false;
+    let disposed = false;
     const timer = window.setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
+      const version = commandVersion.current;
+      // Poll even when this surface last saw an idle session: the other surface may start capture.
       void chrome.tabs.sendMessage(tabId, { type: 'FLOW_INSPECTOR', action: 'get' }).then(reply => {
-        if (mounted.current && reply?.ok) setSession(reply.session);
-      }).catch(() => { if (mounted.current) { setSession(undefined); setError('Flow tab reloaded or closed. Inspect again on the current Flow tab.'); } });
+        if (disposed || !mounted.current || version !== commandVersion.current) return;
+        if (reply?.ok) setSession(reply.session);
+        else setError(reply?.error ?? 'Flow inspector did not respond. Reopen it on the Flow tab.');
+      }).catch(() => {
+        if (!disposed && mounted.current && version === commandVersion.current) { setSession(undefined); setTabId(undefined); setError('Flow tab reloaded or closed. Reopen the extension on the Flow tab.'); }
+      }).finally(() => { inFlight = false; });
     }, 1000);
-    return () => window.clearInterval(timer);
-  }, [session?.observing, tabId]);
+    return () => { disposed = true; window.clearInterval(timer); };
+  }, [tabId]);
 
   async function run(action: InspectorCommand['action']) {
+    commandVersion.current++;
     setBusy(true); setError(''); setNotice('');
     try {
-      const result = await inspectTab(action, debug);
+      const result = await inspectTab(action, debug, tabId);
       setSession(result.session); setTabId(result.tabId);
     } catch (e) { setError(e instanceof Error ? e.message : 'Inspection failed.'); }
     finally { setBusy(false); }
   }
+  async function writeCapture(current: InspectorSession) {
+    await navigator.clipboard.writeText(JSON.stringify(exportCapture(current), null, 2));
+    setNotice('Live capture JSON copied. Review asset identifiers before sharing.');
+  }
   async function copyReport() {
-    if (!session) return;
+    if (tabId === undefined) return;
+    commandVersion.current++;
+    setBusy(true); setError(''); setNotice('');
     try {
-      await navigator.clipboard.writeText(JSON.stringify(exportCapture(session), null, 2));
-      setNotice('Diagnostic JSON copied. Review asset identifiers before sharing.'); setError('');
-    } catch { setError('Clipboard access failed. Select and copy the JSON shown below.'); }
+      // Fetch fresh page state so popup/side-panel caches cannot export an earlier idle session.
+      const current = await liveMenuCapture(tabId, debug);
+      setSession(current);
+      await writeCapture(current);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Copy failed. Select and copy the current JSON shown below.'); }
+    finally { setBusy(false); }
+  }
+  async function stopAndCopy() {
+    if (tabId === undefined) return;
+    commandVersion.current++;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { session: current } = await inspectTab('stop', debug, tabId);
+      setSession(current);
+      if (!current.observation?.startedAt) throw new Error('Menu capture has not started on this tab. Click Start menu capture first.');
+      await writeCapture(current);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Copy failed. Select and copy the current JSON shown below.'); }
+    finally { setBusy(false); }
   }
   async function openPanel() {
     // Call open directly within the user gesture; do not await a tab query first.
@@ -61,7 +104,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   }
   const report = session?.latest;
   return <main>
-    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Phase 1 · DOM inspector</p></div></header>
+    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Phase 1 · DOM inspector{session?.buildVersion ? ` · ${session.buildVersion}` : ''}</p></div></header>
     <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture the actual image and menu structure before enabling download automation.</p></section>
     <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
     <section className="stats" aria-label="Inspection results">
@@ -72,22 +115,27 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     </section>
     <p className="hint">Candidates are a sample of up to 24 images, with manual image context and viewport images prioritized. They are not a project count. Open menus manually while observing. Closed menus may be absent from the DOM.</p>
     <p className="hint">More counts can include the page header. Use the image's own menu. Hidden card controls remain in the diagnostic context even when absent from the visible count.</p>
-    <div className="actions"><button className="primary" disabled={busy || !settingsReady} onClick={() => void run('scan')}>Inspect current DOM</button><button disabled={busy || !settingsReady} onClick={() => void run(session?.observing ? 'stop' : 'observe')}>{session?.observing ? 'Stop observing' : 'Observe menu changes'}</button></div>
+    <div className="actions">
+      <button className="primary" disabled={busy || !settingsReady} onClick={() => void (session?.observing ? stopAndCopy() : run('observe'))}>{session?.observing ? 'Stop and copy JSON' : 'Start menu capture'}</button>
+      <button disabled={busy || !settingsReady} onClick={() => void run('scan')}>Take DOM snapshot</button>
+      {session?.observing && <button disabled={busy} onClick={() => void run('stop')}>Stop observing</button>}
+    </div>
     {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open inspector side panel</button>}
     <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <p className="hint">Debug changes apply on the next inspection action.</p>
     {session?.observation?.lastError && <p className="error" role="alert">{session.observation.lastError}</p>}
     {error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {session && <>
-      {session.interactionSnapshots.length === 0 && <p className="notice">No manual interactions recorded yet. Click Observe menu changes, confirm the status says Observing, then open the image menus manually.</p>}
+      {session.interactionSnapshots.length === 0 && <p className="notice">No manual interactions recorded yet. Click Start menu capture, confirm the status says Observing, then open the image menus manually.</p>}
       {!session.checkpoints.qualityVisible && <p className="hint">No visible 2K Upscaled snapshot captured yet. Open More → Download and leave the quality menu visible for at least half a second.</p>}
-      <div className="report-heading"><h2>DOM evidence <small>{session.history.length} snapshots</small></h2><button disabled={busy} onClick={() => void copyReport()}>Copy JSON</button></div>
+      <div className="report-heading"><h2>DOM evidence <small>{session.history.length} snapshots</small></h2><button disabled={busy || !session.observation?.startedAt} onClick={() => void copyReport()}>Copy JSON</button></div>
       {report?.truncated && <p className={report.truncationReasons.every(reason => reason.startsWith('Image diagnostic sample')) ? 'hint' : 'error'}>
         {report.truncationReasons.join(' ')} This is a diagnostic sample, not full asset discovery.
       </p>}
-      <details onToggle={event => setShowJson(event.currentTarget.open)}><summary>Diagnostic JSON · format v2</summary>{showJson && <pre tabIndex={0}>{JSON.stringify(exportCapture(session), null, 2)}</pre>}</details>
+      <details onToggle={event => setShowJson(event.currentTarget.open)}><summary>Diagnostic JSON · format v2 · current session</summary>{showJson && <pre tabIndex={0}>{JSON.stringify(exportCapture(session), null, 2)}</pre>}</details>
       <p className="hint">Baseline and first Download/2K snapshots are retained. {session.historyDropped > 0 ? `${session.historyDropped} older rolling snapshots were dropped. ` : ''}Node IDs apply only to this page session; identifiers still need stability verification.</p>
-      <button className="wide" disabled={busy} onClick={() => void run('clear')}>Clear capture history</button>
+      <p className="hint">Copy JSON reads the live captured tab. Clear history resets the capture and requires starting it again.</p>
+      <button className="wide" disabled={busy || session.observing} onClick={() => void run('clear')}>Clear capture history</button>
     </>}
     <footer>No clicks or downloads are automated in this build. Phase 2 requires verified live Flow evidence.</footer>
   </main>;

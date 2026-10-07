@@ -66,6 +66,8 @@ export interface ObservationState {
   lastError: string | null;
 }
 export interface InspectorSession {
+  captureProtocol?: 1;
+  buildVersion?: string;
   observation?: ObservationState;
   observing: boolean;
   debug: boolean;
@@ -77,6 +79,8 @@ export interface InspectorSession {
   checkpoints: { initial: InspectionReport; downloadVisible?: InspectionReport; qualityVisible?: InspectionReport };
 }
 export interface EvidenceExport {
+  captureProtocol?: 1;
+  buildVersion?: string;
   observation?: ObservationState;
   phase: 1;
   formatVersion: 2;

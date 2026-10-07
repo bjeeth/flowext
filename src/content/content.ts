@@ -33,7 +33,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   };
   const safeScan = (interaction?: ManualInteractionInput) => {
     try { scan(interaction); }
-    catch { observationError = 'Read-only observation scan failed. Use Inspect current DOM to retry.'; console.error('[FLOW-BULK][ERROR]', observationError); }
+    catch { observationError = 'Read-only observation scan failed. Use Take DOM snapshot to retry.'; console.error('[FLOW-BULK][ERROR]', observationError); }
   };
   const schedule = () => {
     // Leading bounded delay ensures continuous mutations cannot starve a snapshot.
@@ -80,7 +80,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     document.removeEventListener('load', schedule, true);
     for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
   };
-  const session = (): InspectorSession => ({ observing, debug, latest,
+  const session = (): InspectorSession => ({ captureProtocol: 1, buildVersion: chrome.runtime.getManifest().version, observing, debug, latest,
     observation: { active: observing, startedAt: observationStartedAt, stoppedAt: observationStoppedAt, lastError: observationError },
     sessionId: capture.sessionId,
     history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
@@ -107,7 +107,9 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
           if (debug) console.info('[FLOW-BULK][INSPECTION] Read-only observation started; auto-stop in 10 minutes.', latest);
           break;
         case 'stop': stop(); scan(); break;
-        case 'clear': stop(); preferredImage = undefined; observationStartedAt = null; observationStoppedAt = null; observationError = null; latest = inspectFlow(document, location.href); capture = new CaptureHistory(latest); break;
+        case 'clear':
+          if (observing) { sendResponse({ ok: false, error: 'Stop observing and copy the capture before clearing history.' }); return; }
+          stop(); preferredImage = undefined; observationStartedAt = null; observationStoppedAt = null; observationError = null; latest = inspectFlow(document, location.href); capture = new CaptureHistory(latest); break;
         default: sendResponse({ ok: false, error: 'Unknown inspector command.' }); return;
       }
       sendResponse({ ok: true, session: session() });

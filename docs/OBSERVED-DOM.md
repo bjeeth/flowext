@@ -25,6 +25,12 @@ Exported optional observation metadata records active/start/stop/error state; ol
 
 ## Required recapture
 
-Reload the updated extension and refresh Flow. Follow README's live procedure, preferably with the side panel open so its status remains visible. Click **Observe menu changes** and confirm **Observing DOM changes** before hovering the image and opening its More → Download menu. Leave 2K Upscaled visible for at least half a second. Stop observing, copy the JSON, and review identifiers before supplying it.
+Reload the updated extension and refresh Flow. Follow README's live procedure, preferably with the side panel open so its status remains visible. Click **Start menu capture** and confirm **Observing DOM changes** before hovering the image and opening its More → Download menu. Leave 2K Upscaled visible for at least half a second. Click **Stop and copy JSON**, and review identifiers before supplying it.
 
 Include the separate manual download note from README step 7. If menu evidence remains missing, inspect the new observer/error metadata and improve capture further; do not infer absent menu selectors from this baseline.
+
+## Repeated idle exports and screenshot
+
+Subsequent supplied files still contain null observer start metadata and no menu transitions. That describes the exported snapshots; the old UI did not guarantee those snapshots represented the current page session. Copy read cached UI state, and idle panels did not poll for observation started elsewhere. Version 0.1.1 fixes that stale-export path and prevents unstarted captures from being copied through the menu-capture control. This is a verified synchronization defect, not proof of the exact cause of each user's capture.
+
+The supplied screenshot confirms the visual More → Download submenu → 2K / Upscaled workflow, with quality text on separate lines. Diagnostic name matching now accepts whitespace-separated and concatenated known `2K Upscaled` text; 4K and upgrade text remain excluded. The screenshot does not supply DOM selectors, menu roles, portal ownership, or browser download lifecycle evidence. No Phase 2 automation is implemented from it.

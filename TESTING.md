@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Recorded cloud results: TypeScript and production build passed; 21/21 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); `npm audit` reported zero vulnerabilities. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
+Recorded cloud results: TypeScript and production build passed; 28/28 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); `npm audit` reported zero vulnerabilities. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
 
 ## Local checks
 
@@ -40,3 +40,7 @@ All checks below are unrun and must remain so until actual automation exists.
 - [ ] Filename format, actual file extension, and duplicate names preserve existing files.
 - [ ] Retry only failed items; per-asset errors and counts agree with actual downloads.
 - [ ] Chrome and Edge loaded-unpacked tests pass; keyboard navigation and focus are usable.
+
+## Version 0.1.1 session-sync validation
+
+New regression tests use Chrome API transport stubs and render the real extension UI, without creating Flow page/card/menu DOM or assets. They verify live bound-tab export instead of cached idle metadata; prevention of unstarted exports; stop commands staying on the captured tab after active-tab changes; refusal after navigation outside Flow; old-script detection; idle-panel synchronization with capture started elsewhere; clear disabled during observation; and fresh backend metadata at copy time. Known-label string tests cover split/concatenated 2K text while rejecting 4K/upgrade variants. TypeScript and the production build pass. These tests do not prove actual authenticated Flow menu or download behavior.
