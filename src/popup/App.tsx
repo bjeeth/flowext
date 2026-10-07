@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { exportCapture } from '../shared/capture';
 import { inspectTab } from '../shared/client';
 import type { InspectorCommand, InspectorSession } from '../shared/types';
 import './styles.css';
@@ -9,6 +10,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [showJson, setShowJson] = useState(false);
   const [tabId, setTabId] = useState<number>();
   const [settingsReady, setSettingsReady] = useState(false);
   const [windowId, setWindowId] = useState<number>();
@@ -42,7 +44,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   async function copyReport() {
     if (!session) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify({ phase: 1, history: session.history }, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(exportCapture(session), null, 2));
       setNotice('Diagnostic JSON copied. Review asset identifiers before sharing.'); setError('');
     } catch { setError('Clipboard access failed. Select and copy the JSON shown below.'); }
   }
@@ -77,7 +79,8 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     {session && <>
       <div className="report-heading"><h2>DOM evidence <small>{session.history.length} snapshots</small></h2><button disabled={busy} onClick={() => void copyReport()}>Copy JSON</button></div>
       {report?.truncated && <p className="error">Report is bounded and was truncated. Inspect a smaller visible section.</p>}
-      <details><summary>Diagnostic JSON</summary><pre tabIndex={0}>{JSON.stringify({ phase: 1, history: session.history }, null, 2)}</pre></details>
+      <details onToggle={event => setShowJson(event.currentTarget.open)}><summary>Diagnostic JSON · format v2</summary>{showJson && <pre tabIndex={0}>{JSON.stringify(exportCapture(session), null, 2)}</pre>}</details>
+      <p className="hint">Baseline and first Download/2K snapshots are retained. {session.historyDropped > 0 ? `${session.historyDropped} older rolling snapshots were dropped. ` : ''}Node IDs apply only to this page session; identifiers still need stability verification.</p>
       <button className="wide" disabled={busy} onClick={() => void run('clear')}>Clear capture history</button>
     </>}
     <footer>No clicks or downloads are automated in this build. Phase 2 requires verified live Flow evidence.</footer>

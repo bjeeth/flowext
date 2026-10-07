@@ -1,8 +1,9 @@
-import { inspectFlow } from './inspector';
-import { isFlowPage } from './flow-dom';
+import { inspectFlow, type ManualInteractionInput } from './inspector';
+import { controlKind, isFlowPage } from './flow-dom';
+import { CaptureHistory } from '../shared/capture-history';
+import { PROBES } from './selectors';
 import type { InspectorCommand, InspectorReply, InspectorSession } from '../shared/types';
 
-// Explicit injection only after an extension gesture; guarded against duplicate listeners.
 const global = globalThis as typeof globalThis & { __flowBulkInspectorInstalled?: boolean };
 if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   global.__flowBulkInspectorInstalled = true;
@@ -11,38 +12,63 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   let expiry: ReturnType<typeof setTimeout> | undefined;
   let observing = false;
   let debug = false;
+  let lastHovered: Element | null = null;
   let latest = inspectFlow(document, location.href);
-  const history = [latest];
-  let signature = JSON.stringify({ ...latest, capturedAt: '' });
+  let capture = new CaptureHistory(latest);
 
-  const scan = () => {
-    latest = inspectFlow(document, location.href);
-    const nextSignature = JSON.stringify({ ...latest, capturedAt: '' });
-    if (nextSignature !== signature) {
-      history.push(latest);
-      if (history.length > 20) history.shift();
-      signature = nextSignature;
-      if (debug) {
-        console.info('[FLOW-BULK][DISCOVERY]', latest.candidates.length, 'image candidates', latest);
-        for (const kind of ['more', 'download', '2k'] as const) {
-          const controls = latest.controls.filter(control => control.kind === kind);
-          if (controls.length) console.info('[FLOW-BULK][INSPECTION]', kind, controls);
-        }
+  const scan = (interaction?: ManualInteractionInput) => {
+    latest = inspectFlow(document, location.href, interaction);
+    if (capture.add(latest) && debug) {
+      console.info('[FLOW-BULK][DISCOVERY]', latest.candidates.length, 'image candidates', latest);
+      for (const kind of ['more', 'download', '2k'] as const) {
+        const controls = latest.controls.filter(control => control.kind === kind);
+        if (controls.length) console.info('[FLOW-BULK][INSPECTION]', kind, controls);
       }
     }
   };
-  const stop = () => {
-    observer?.disconnect(); observer = undefined;
-    clearTimeout(debounce); clearTimeout(expiry);
-    observing = false;
-    window.removeEventListener('scroll', schedule, true);
-    document.removeEventListener('load', schedule, true);
+  const safeScan = (interaction?: ManualInteractionInput) => {
+    try { scan(interaction); }
+    catch { console.error('[FLOW-BULK][ERROR] Read-only observation scan failed. Use Inspect current DOM to retry.'); }
   };
   const schedule = () => {
-    clearTimeout(debounce);
-    debounce = setTimeout(scan, 250);
+    // Leading bounded delay ensures continuous mutations cannot starve a snapshot.
+    if (debounce) return;
+    debounce = setTimeout(() => { debounce = undefined; safeScan(); }, 250);
   };
-  const session = (): InspectorSession => ({ observing, debug, latest, history: [...history] });
+  const onInteraction = (event: Event) => {
+    // Observe genuine manual interaction without synthesizing, canceling, or intercepting it.
+    if (!event.isTrusted || !(event.target instanceof Element)) return;
+    const target = event.target;
+    const control = target.closest(PROBES.controls);
+    const scope = control ?? target;
+    // A manually clicked nonsemantic element is evidence too; do not guess a button role.
+    if (event.type !== 'click' && !control && !controlKind(target) && !target.closest(PROBES.menus)) return;
+    let relevant = !!controlKind(scope) || !!scope.closest(PROBES.menus);
+    for (let p = scope.parentElement, depth = 0; p && depth < PROBES.maxAncestorDepth && !relevant; p = p.parentElement, depth++) {
+      if (p === document.body || p === document.documentElement) break;
+      const count = p.querySelectorAll(PROBES.images).length;
+      if (count === 1) relevant = true;
+      if (count > 1) break;
+    }
+    if (!relevant) return;
+    if (event.type === 'pointerover') {
+      if (lastHovered === scope) return;
+      lastHovered = scope;
+    }
+    safeScan({ type: event.type as ManualInteractionInput['type'], target, capturedAt: new Date().toISOString() });
+    schedule();
+  };
+  const stop = () => {
+    observer?.disconnect(); observer = undefined;
+    clearTimeout(debounce); debounce = undefined; clearTimeout(expiry);
+    observing = false; lastHovered = null;
+    window.removeEventListener('scroll', schedule, true);
+    document.removeEventListener('load', schedule, true);
+    for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
+  };
+  const session = (): InspectorSession => ({ observing, debug, latest, sessionId: capture.sessionId,
+    history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
+    interactionSnapshots: [...capture.interactionSnapshots] });
 
   chrome.runtime.onMessage.addListener((message: InspectorCommand, sender, sendResponse: (r: InspectorReply) => void) => {
     if (sender.id !== chrome.runtime.id || message?.type !== 'FLOW_INSPECTOR') return;
@@ -56,15 +82,16 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
           observer = new MutationObserver(schedule);
           observer.observe(document.documentElement, {
             subtree: true, childList: true, characterData: true, attributes: true,
-            attributeFilter: ['aria-label', 'aria-labelledby', 'aria-selected', 'aria-pressed', 'aria-expanded', 'aria-disabled', 'hidden', 'style', 'class', 'role', 'disabled', 'src', 'data-state'],
+            // Read-only observation of attribute changes, including actual identifier/state changes.
           });
-          window.addEventListener('scroll', schedule, true);
+          window.addEventListener('scroll', schedule, { capture: true, passive: true });
           document.addEventListener('load', schedule, true);
+          for (const type of ['click', 'pointerover', 'focusin']) document.addEventListener(type, onInteraction, { capture: true, passive: true });
           expiry = setTimeout(stop, 10 * 60 * 1000);
           if (debug) console.info('[FLOW-BULK][INSPECTION] Read-only observation started; auto-stop in 10 minutes.', latest);
           break;
         case 'stop': stop(); scan(); break;
-        case 'clear': stop(); scan(); history.splice(0, history.length, latest); break;
+        case 'clear': stop(); latest = inspectFlow(document, location.href); capture = new CaptureHistory(latest); break;
         default: sendResponse({ ok: false, error: 'Unknown inspector command.' }); return;
       }
       sendResponse({ ok: true, session: session() });

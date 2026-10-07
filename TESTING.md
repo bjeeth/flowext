@@ -1,19 +1,21 @@
 # Validation and live acceptance checklist
 
-Recorded cloud results: TypeScript and production build passed; 9/9 diagnostic unit tests passed; `npm audit` reported zero vulnerabilities. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
+Recorded cloud results: TypeScript and production build passed; 20/20 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); `npm audit` reported zero vulnerabilities. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
 
 ## Local checks
 
 Run `npm ci`, `npm test`, `npm run build`, and `npm run test:browser` from the project root. Build output checks verify MV3 entries and that `content.js` has no module imports/exports, since it is injected as a classic isolated content script.
 
-Automated tests cover exact HTTPS host scoping; exclusion of unrelated pages; candidate/control relationships; visible/hidden menu controls; disabled quality options; referenced labels; candidate bounds; hidden images; and exclusion of media URLs/prompt text. Browser smoke uses actual Chromium and the actual built extension. Its test page is `about:blank`, so its result concerns extension loading and refusal to inspect unrelated pages only.
+Automated tests cover exact HTTPS host scoping; exclusion of unrelated pages; candidate/control relationships; visible/hidden menu controls; disabled quality options; referenced labels; candidate bounds; hidden images; and exclusion of media URLs/prompt text. New tests cover invalid/legacy JSON, missing snapshot references, inert untrusted input, oversized captures, no identifier echo in errors, metadata-only capture deduplication, and baseline retention. No new fake/mock Flow DOM or assets were added; new capture tests use the untouched test document on its actual non-Flow origin. A valid authenticated Flow JSON capture has not yet been supplied or reviewed. Browser smoke uses actual Chromium and the actual built extension. Its test page is `about:blank`, so its result concerns extension loading and refusal to inspect unrelated pages only.
 
 ## Phase 1 live Flow — not yet run
 
 - [ ] Extension loads in the user's Chrome/Edge.
 - [ ] Capture a generated image's container and actual identifier attributes.
 - [ ] Confirm candidates exclude unrelated icons and associate the correct More button.
-- [ ] Capture More, Download, and 2K menus with correct roles/names/relationships.
+- [ ] Capture More, Download, and 2K menus with correct roles/names/relationships; inspect parent and ARIA-reference graph.
+- [ ] Supply format-v2 JSON; run `npm run inspect:evidence -- /path/to/capture.json` and review missing evidence.
+- [ ] Confirm baseline/menu checkpoints and manual-interaction snapshots survive rolling history eviction.
 - [ ] Capture selected/active state and enabled/disabled quality options.
 - [ ] Capture manual scrolling and lazy-loading behavior; identify collection container.
 - [ ] Identify rerender/virtualization effects and durable asset IDs.
