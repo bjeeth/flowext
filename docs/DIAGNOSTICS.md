@@ -33,7 +33,9 @@ Accessible names are approximated. Only the previously documented workflow label
 - `checkpoints.downloadVisible` and `.qualityVisible`: first real scans with recognized visible Download or 2K controls, if observed.
 - `historyDropped`: count of older rolling snapshots removed. Pinned snapshots remain.
 
-A scan is bounded to 150 image candidates, 100 recognized controls, 20 menus, 30 context controls per candidate, 50 controls per menu, 1,200 graph nodes, and seven ancestor levels. `truncated` and `truncationReasons` make limit hits explicit. Context depth limits can leave parent/reference nodes outside the graph. Continuous mutation observation uses a bounded 250 ms interval so it cannot postpone scans indefinitely. Observation still expires after ten minutes.
+Interaction, active-control, and menu contexts are captured before image sampling so the relevant workflow has first use of the graph budget. Images are sampled with manual image context and viewport images first; the script does not move the page.
+
+A scan is bounded to 24 sampled image candidates, 100 recognized controls, 20 menus, 30 context controls per candidate, 50 controls per menu, 1,200 graph nodes, and seven ancestor levels. `truncated` and `truncationReasons` make limit hits explicit. Context depth limits can leave parent/reference nodes outside the graph. Continuous mutation observation uses a bounded 250 ms interval so it cannot postpone scans indefinitely. Observation still expires after ten minutes.
 
 Snapshots may contain card/asset identifier metadata. Review it before sharing. Image URLs, page project URLs, prompts, arbitrary label text, cookies, session tokens, full HTML, and pixel data are not collected. Unfamiliar data-attribute names are captured without their values; only allowlisted structural/state/identifier values are included. Attribute identifiers may still be sensitive. Do not put real captures in Git; keep them outside the checkout.
 
@@ -47,7 +49,9 @@ npm run inspect:evidence -- /path/to/real-flow-capture.json
 
 The command checks format, scope, node states, image loading metadata, graph/snapshot references, and bounds. It prints coverage and missing evidence rather than raw identifiers. It reads the file only; it executes no selectors, HTML, scripts, or Flow actions and makes no network requests.
 
-Exit 0 means **the capture format is valid**, not that all evidence exists or Phase 2 is verified. Coverage may correctly report missing evidence. Exit 1 means malformed/legacy/non-Flow input, broken required references, or another input error. A real v2 capture has not yet been supplied, so acceptance of an authenticated Flow capture remains untested.
+The optional `observation` metadata records whether the observer is active, start/stop times, and its last scan error. Old v2 captures without it remain accepted, with an explicit warning. More coverage distinguishes visible and hidden card-associated controls.
+
+Exit 0 means **the capture format is valid**, not that all evidence exists or Phase 2 is verified. Coverage may correctly report missing evidence. Exit 1 means malformed/legacy/non-Flow input, broken required references, or another input error. The supplied real v2 capture validated successfully, but lacks Download/2K and manual-interaction evidence; see [observed findings](OBSERVED-DOM.md). Format validation does not satisfy the Phase 2 gate.
 
 Keep the manual 2K download result from README step 7 separate: whether processing occurred, approximate delay, final filename/format, browser success/failure, and visible UI state. Do not supply signed URLs or credentials. The inspector cannot confirm browser download completion because it does not request the downloads permission.
 

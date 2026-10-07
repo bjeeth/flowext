@@ -1,11 +1,18 @@
+import { rankInspectionTargets } from './sampling';
 import { PROBES } from './selectors';
 import { attributes, describeControl, findCandidateContainer, identifierAttributes, isVisible } from './flow-dom';
 import { EvidenceCollector } from './evidence-collector';
 import type { AssetCandidate, ControlEvidence } from '../shared/types';
 
-export function detectCandidates(doc: Document, collector = new EvidenceCollector()): AssetCandidate[] {
-  return Array.from(doc.querySelectorAll<HTMLImageElement>(PROBES.images))
-    .filter(isVisible).slice(0, PROBES.maxCandidates).map(image => {
+export function detectCandidates(doc: Document, collector = new EvidenceCollector(), preferred?: HTMLImageElement): AssetCandidate[] {
+  const viewportWidth = doc.defaultView?.innerWidth ?? 0;
+  const viewportHeight = doc.defaultView?.innerHeight ?? 0;
+  const ranked = rankInspectionTargets(Array.from(doc.querySelectorAll<HTMLImageElement>(PROBES.images)).map((image, order) => {
+    const rect = image.getBoundingClientRect();
+    return { value: image, order, preferred: image === preferred,
+      inViewport: rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && rect.top < viewportHeight && rect.left < viewportWidth };
+  }));
+  return ranked.filter(isVisible).slice(0, PROBES.maxCandidates).map(image => {
       const container = findCandidateContainer(image);
       const single = container.querySelectorAll(PROBES.images).length === 1;
       const contextControls = single ? Array.from(container.querySelectorAll(PROBES.controls)) : [];

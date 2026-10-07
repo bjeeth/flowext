@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { inspectFlow } from '../src/content/inspector';
 import { accessibleName, isFlowPage } from '../src/content/flow-dom';
+import { PROBES } from '../src/content/selectors';
 import { detectCandidates } from '../src/content/asset-detector';
 
 beforeEach(() => {
@@ -68,7 +69,7 @@ describe('read-only diagnostic evidence', () => {
   it('reports bounded captures explicitly', () => {
     document.body.innerHTML = '<img>'.repeat(151);
     const report = inspectFlow(document, 'https://flow.google.com/');
-    expect(report.candidates).toHaveLength(150);
+    expect(report.candidates).toHaveLength(PROBES.maxCandidates);
     expect(report.totals.imageElements).toBe(151);
     expect(report.truncated).toBe(true);
   });

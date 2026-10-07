@@ -7,7 +7,7 @@ The requested workflow is a sequential `image → More → Download → 2K Upsca
 ## Current features
 
 - Explicit, user-initiated inspection restricted to `https://flow.google.com/*`.
-- Image-element candidates, nearest plausible card containers, More-control relationships, loading flags, identifier hints, and selection attributes.
+- A bounded sample of up to 24 image-element candidates, nearest plausible card containers, visible/hidden More-control relationships, loading flags, identifier hints, and selection attributes.
 - Visible semantic More, Download, 2K Upscaled, and Original controls, plus menu/listbox structures.
 - Possible scroll regions, without scrolling the page or claiming to discover all assets.
 - Mutation, scroll, and image-load observation; debounced scans; 20 rolling snapshots plus pinned baseline/menu captures and bounded manual-interaction evidence; automatic stop after ten minutes.
@@ -59,7 +59,7 @@ Minimum Chrome/Edge version is 116 for the side panel API. If Flow redirects to 
 6. Stop observing and click **Copy JSON**. Review identifiers, then supply the JSON to development. The inspector records only recognized workflow labels, structural metadata, and allowlisted attributes; it excludes full HTML, project URLs, media URLs, prompts, cookies, and tokens. Arbitrary identifier values are not guaranteed free of sensitive information.
 7. Separately perform one manual 2K download and note whether it starts immediately or after processing, expected filename/format, approximate timing, and success/failure UI. Do not share signed download URLs or session credentials.
 
-Keep the popup open while capturing, or use **Open inspector side panel** for a persistent view. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopen and scan to read the current session. **Clear capture history** stops observing and resets all pinned/rolling captures to a fresh baseline. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
+Keep the popup open while capturing, or use **Open inspector side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopen and scan to read the current session. **Clear capture history** stops observing and resets all pinned/rolling captures to a fresh baseline. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
 
 ## Architecture and selectors
 
@@ -84,7 +84,7 @@ scripts/review-evidence.mjs        Review user-supplied real JSON without execut
 scripts/browser-smoke.mjs          Real local Chromium extension smoke test
 ```
 
-No Flow-specific DOM elements have been discovered in an authenticated browser yet. Probes use `img`, semantic buttons/menu items, menus/listboxes, and names such as `More`, `Download`, and `2K Upscaled`. These are **hypotheses to collect evidence**, not declarations about Flow's DOM. They inspect only rendered light DOM; virtualized assets, shadow DOM, iframe content, icon-only controls without labels, and localized menu labels may be missed. The accessible-name helper is a diagnostic approximation, not a full accessibility-tree implementation.
+A user-supplied real capture now establishes image custom-element ancestry, `data-media-id` hints, and hidden image-associated More controls. It contains no Download/2K menu or manual-interaction evidence; Phase 2 is still gated. See [observed DOM findings](docs/OBSERVED-DOM.md). Probes use `img`, semantic buttons/menu items, menus/listboxes, and names such as `More`, `Download`, and `2K Upscaled`. These are **hypotheses to collect evidence**, not declarations about Flow's DOM. They inspect only rendered light DOM; virtualized assets, shadow DOM, iframe content, icon-only controls without labels, and localized menu labels may be missed. The accessible-name helper is a diagnostic approximation, not a full accessibility-tree implementation.
 
 Update `src/content/selectors.ts` after obtaining evidence. Verify that a candidate is a generated image rather than a decorative thumbnail, that its More control is associated with that exact asset, and that menu portals contain the expected Download and quality items. Do not scatter selectors through the automation engine or use screen coordinates. Validate the changed diagnostic logic, rebuild, and rerun the live capture. Do not create sample/mock Flow DOM as a substitute for the real capture.
 

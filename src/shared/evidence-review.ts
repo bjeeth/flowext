@@ -19,7 +19,7 @@ const owns = (o: object, k: PropertyKey) => Object.prototype.hasOwnProperty.call
 /** Validate untrusted pasted/file JSON. Never evaluate selectors, HTML, or commands. */
 export function reviewEvidence(input: unknown): EvidenceReview {
   const result: EvidenceReview = { valid: false, errors: [], warnings: [], snapshots: 0, coverage: {
-    imageCandidates: false, moreAssociatedWithCandidate: false, downloadInMenu: false, qualityInMenu: false,
+    imageCandidates: false, moreAssociatedWithCandidate: false, visibleMoreAssociatedWithCandidate: false, hiddenMoreAssociatedWithCandidate: false, downloadInMenu: false, qualityInMenu: false,
     explicitMenuLinks: false, identifierHints: false, loadingStates: false, disabledStates: false, manualInteractions: false,
   } };
   const fail = (path: string, reason: string) => { if (result.errors.length < 30) result.errors.push(`${path}: ${reason}`); };
@@ -29,6 +29,16 @@ export function reviewEvidence(input: unknown): EvidenceReview {
     return result;
   }
   if (!string(input.sessionId) || !input.sessionId) fail('sessionId', 'Missing page-session identity.');
+  if (owns(input, 'observation')) {
+    const observation = input.observation;
+    if (!object(observation) || !bool(observation.active) ||
+        ['startedAt', 'stoppedAt'].some(key => observation[key] !== null && (!string(observation[key]) || !Number.isFinite(Date.parse(observation[key] as string)))) ||
+        (observation.lastError !== null && !string(observation.lastError))) fail('observation', 'Invalid observer status.');
+    else {
+      if (observation.startedAt === null) warn('Observation was never started in this session. Start Observe menu changes before operating the image menus.');
+      if (observation.lastError) warn('An observation scan failed; inspect the extension status and recapture.');
+    }
+  } else warn('This capture predates observer-status metadata; whether observation started cannot be established.');
   if (!count(input.historyDropped)) fail('historyDropped', 'Expected a nonnegative integer.');
   else if (input.historyDropped) warn('Rolling history dropped older snapshots; check the pinned baseline/menu snapshots and retained manual interactions.');
   if (!object(input.snapshots) || Object.keys(input.snapshots).length > 40 || !Object.keys(input.snapshots).length) {
@@ -134,7 +144,11 @@ export function reviewEvidence(input: unknown): EvidenceReview {
   for (const report of reports) {
     const c = result.coverage;
     c.imageCandidates ||= report.candidates.length > 0;
-    c.moreAssociatedWithCandidate ||= report.candidates.some(a => a.association === 'single-image-container' && a.moreControls.length > 0);
+    const associatedMore = report.candidates.filter(a => a.association === 'single-image-container')
+      .flatMap(a => a.contextControlNodeIds.map(id => report.nodes[id]).filter(n => n && (n.labelMatches.some(m => m.kind === 'more') || a.moreControls.some(m => m.nodeId === n.nodeId))));
+    c.moreAssociatedWithCandidate ||= associatedMore.length > 0;
+    c.visibleMoreAssociatedWithCandidate ||= associatedMore.some(n => n.state.visible);
+    c.hiddenMoreAssociatedWithCandidate ||= associatedMore.some(n => !n.state.visible);
     const menuControls = new Set(report.menuContexts.flatMap(m => m.controlNodeIds));
     c.downloadInMenu ||= report.controls.some(n => n.kind === 'download' && menuControls.has(n.nodeId));
     c.qualityInMenu ||= report.controls.some(n => n.kind === '2k' && menuControls.has(n.nodeId));
@@ -145,6 +159,7 @@ export function reviewEvidence(input: unknown): EvidenceReview {
     c.manualInteractions ||= report.manualInteraction !== null;
   }
   for (const [key, present] of Object.entries(result.coverage)) if (!present) warn(`Evidence not observed: ${key}. Inspect again rather than inventing a selector or relationship.`);
+  if (!result.coverage.manualInteractions) warn('No manual image/menu interaction was recorded. Start Observe menu changes and confirm the extension status says Observing before opening More → Download → 2K.');
   warn('Generated-image identity, identifier stability, portal ownership, and action semantics require human review of the real capture. Labels and single-image container heuristics do not prove them.');
   warn('Phase 1 does not observe browser download completion. Keep the manual download timing/result note separate; Phase 2 must use actual download lifecycle events.');
   result.valid = true;

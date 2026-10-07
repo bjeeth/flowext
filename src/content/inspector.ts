@@ -6,7 +6,7 @@ import type { InspectionReport } from '../shared/types';
 
 let nextSnapshot = 1;
 export interface ManualInteractionInput { type: 'click' | 'pointerover' | 'focusin'; target: Element; capturedAt: string }
-export function inspectFlow(doc: Document, url: string, interaction?: ManualInteractionInput): InspectionReport {
+export function inspectFlow(doc: Document, url: string, interaction?: ManualInteractionInput, preferred?: HTMLImageElement): InspectionReport {
   const isFlow = isFlowPage(url);
   const report: InspectionReport = {
     schemaVersion: 2, snapshotId: `snapshot-${nextSnapshot++}`, capturedAt: new Date().toISOString(), page: { origin: new URL(url).origin, isFlow },
@@ -15,7 +15,7 @@ export function inspectFlow(doc: Document, url: string, interaction?: ManualInte
     totals: { imageElements: 0, videoElements: 0, canvasElements: 0, imagesNotLoaded: 0 }, truncated: false, truncationReasons: [],
     limitations: [
       'Generic diagnostic probes; Flow-specific selectors and generated-asset identity have not been verified.',
-      'Image elements are candidates, not a confirmed project asset count. Icons and thumbnails may be included.',
+      'Image elements are a bounded diagnostic sample, not a project asset count. Manual image context and viewport images are prioritized; icons/thumbnails may be included.',
       'Only currently rendered light DOM is inspected. No automatic scrolling, shadow-root, or iframe traversal.',
       'Node and candidate IDs are session-only. Structural paths may be truncated or nonunique and are not automation selectors.',
       'Ancestor context is depth-limited; a parent or referenced node may be outside the captured graph.',
@@ -27,13 +27,21 @@ export function inspectFlow(doc: Document, url: string, interaction?: ManualInte
   };
   if (!isFlow) return report;
   const collector = new EvidenceCollector();
-  report.candidates = detectCandidates(doc, collector);
   const images = Array.from(doc.querySelectorAll<HTMLImageElement>(PROBES.images));
   report.totals = {
     imageElements: images.length, videoElements: doc.querySelectorAll(PROBES.videos).length,
     canvasElements: doc.querySelectorAll(PROBES.canvases).length,
     imagesNotLoaded: images.filter(img => !img.complete || !img.naturalWidth).length,
   };
+  if (interaction) {
+    const target = collector.capture(interaction.target);
+    const control = interaction.target.closest(PROBES.controls);
+    report.manualInteraction = { type: interaction.type, capturedAt: interaction.capturedAt,
+      targetNodeId: target.nodeId, controlNodeId: control ? collector.capture(control).nodeId : null };
+  }
+  if (doc.activeElement && doc.activeElement !== doc.body && doc.activeElement !== doc.documentElement) {
+    report.activeElementNodeId = collector.capture(doc.activeElement).nodeId;
+  }
   const matched = Array.from(doc.querySelectorAll(PROBES.controls)).flatMap(el => {
     const control = describeControl(el);
     return control ? [{ el, control }] : [];
@@ -48,15 +56,9 @@ export function inspectFlow(doc: Document, url: string, interaction?: ManualInte
       controlNodeIds: items.slice(0, PROBES.maxMenuControls).map(el => collector.capture(el).nodeId),
       controlsTruncated: items.length > PROBES.maxMenuControls };
   });
-  if (interaction) {
-    const target = collector.capture(interaction.target);
-    const control = interaction.target.closest(PROBES.controls);
-    report.manualInteraction = { type: interaction.type, capturedAt: interaction.capturedAt,
-      targetNodeId: target.nodeId, controlNodeId: control ? collector.capture(control).nodeId : null };
-  }
-  if (doc.activeElement && doc.activeElement !== doc.body && doc.activeElement !== doc.documentElement) {
-    report.activeElementNodeId = collector.capture(doc.activeElement).nodeId;
-  }
+  report.candidates = detectCandidates(doc, collector, preferred);
+  report.sampling = { limit: PROBES.maxCandidates, strategy: 'manual-image-then-viewport',
+    preferredMediaNodeId: preferred && doc.contains(preferred) ? collector.capture(preferred).nodeId : null };
   const regions = new Set<Element>();
   for (const element of Array.from(doc.querySelectorAll(PROBES.media)).slice(0, PROBES.maxCandidates)) {
     for (let p = element.parentElement; p; p = p.parentElement) {
@@ -69,7 +71,7 @@ export function inspectFlow(doc: Document, url: string, interaction?: ManualInte
     ...collector.capture(el), scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight,
   }));
   report.nodes = collector.nodes;
-  if (images.filter(isVisible).length > PROBES.maxCandidates) report.truncationReasons.push('Image candidate limit reached.');
+  if (images.filter(isVisible).length > PROBES.maxCandidates) report.truncationReasons.push('Image diagnostic sample limit reached; menu and manual-interaction context was prioritized.');
   if (matched.length > PROBES.maxControls) report.truncationReasons.push('Recognized control limit reached.');
   if (menus.length > PROBES.maxMenus || report.menuContexts.some(menu => menu.controlsTruncated)) report.truncationReasons.push('Menu or menu-control limit reached.');
   if (report.candidates.some(c => c.contextControlsTruncated)) report.truncationReasons.push('Card control limit reached.');

@@ -13,11 +13,16 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   let observing = false;
   let debug = false;
   let lastHovered: Element | null = null;
+  let preferredImage: HTMLImageElement | undefined;
+  let observationStartedAt: string | null = null;
+  let observationStoppedAt: string | null = null;
+  let observationError: string | null = null;
   let latest = inspectFlow(document, location.href);
   let capture = new CaptureHistory(latest);
 
   const scan = (interaction?: ManualInteractionInput) => {
-    latest = inspectFlow(document, location.href, interaction);
+    latest = inspectFlow(document, location.href, interaction, preferredImage);
+    observationError = null;
     if (capture.add(latest) && debug) {
       console.info('[FLOW-BULK][DISCOVERY]', latest.candidates.length, 'image candidates', latest);
       for (const kind of ['more', 'download', '2k'] as const) {
@@ -28,7 +33,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   };
   const safeScan = (interaction?: ManualInteractionInput) => {
     try { scan(interaction); }
-    catch { console.error('[FLOW-BULK][ERROR] Read-only observation scan failed. Use Inspect current DOM to retry.'); }
+    catch { observationError = 'Read-only observation scan failed. Use Inspect current DOM to retry.'; console.error('[FLOW-BULK][ERROR]', observationError); }
   };
   const schedule = () => {
     // Leading bounded delay ensures continuous mutations cannot starve a snapshot.
@@ -51,6 +56,14 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
       if (count > 1) break;
     }
     if (!relevant) return;
+    // Preserve context of the image the user manually interacted with; no asset is selected by code.
+    if (target instanceof HTMLImageElement) preferredImage = target;
+    else for (let p: Element | null = scope, depth = 0; p && depth < PROBES.maxAncestorDepth; p = p.parentElement, depth++) {
+      if (p === document.body || p === document.documentElement) break;
+      const images = p.querySelectorAll<HTMLImageElement>(PROBES.images);
+      if (images.length === 1) { preferredImage = images[0]; break; }
+      if (images.length > 1) break;
+    }
     if (event.type === 'pointerover') {
       if (lastHovered === scope) return;
       lastHovered = scope;
@@ -61,12 +74,15 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   const stop = () => {
     observer?.disconnect(); observer = undefined;
     clearTimeout(debounce); debounce = undefined; clearTimeout(expiry);
+    if (observing) observationStoppedAt = new Date().toISOString();
     observing = false; lastHovered = null;
     window.removeEventListener('scroll', schedule, true);
     document.removeEventListener('load', schedule, true);
     for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
   };
-  const session = (): InspectorSession => ({ observing, debug, latest, sessionId: capture.sessionId,
+  const session = (): InspectorSession => ({ observing, debug, latest,
+    observation: { active: observing, startedAt: observationStartedAt, stoppedAt: observationStoppedAt, lastError: observationError },
+    sessionId: capture.sessionId,
     history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
     interactionSnapshots: [...capture.interactionSnapshots] });
 
@@ -78,7 +94,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
         case 'get': break;
         case 'scan': scan(); break;
         case 'observe':
-          stop(); scan(); observing = true;
+          stop(); scan(); observing = true; observationStartedAt = new Date().toISOString(); observationStoppedAt = null;
           observer = new MutationObserver(schedule);
           observer.observe(document.documentElement, {
             subtree: true, childList: true, characterData: true, attributes: true,
@@ -91,11 +107,12 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
           if (debug) console.info('[FLOW-BULK][INSPECTION] Read-only observation started; auto-stop in 10 minutes.', latest);
           break;
         case 'stop': stop(); scan(); break;
-        case 'clear': stop(); latest = inspectFlow(document, location.href); capture = new CaptureHistory(latest); break;
+        case 'clear': stop(); preferredImage = undefined; observationStartedAt = null; observationStoppedAt = null; observationError = null; latest = inspectFlow(document, location.href); capture = new CaptureHistory(latest); break;
         default: sendResponse({ ok: false, error: 'Unknown inspector command.' }); return;
       }
       sendResponse({ ok: true, session: session() });
     } catch (error) {
+      if (message.action === 'observe') { stop(); observationError = 'Observation could not start. Inspect the current DOM and try again.'; }
       console.error('[FLOW-BULK][ERROR]', 'Inspector scan failed');
       sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Inspector scan failed.' });
     }

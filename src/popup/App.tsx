@@ -65,20 +65,26 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture the actual image and menu structure before enabling download automation.</p></section>
     <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
     <section className="stats" aria-label="Inspection results">
-      <div><strong>{report?.candidates.length ?? '—'}</strong><span>Image candidates</span></div>
-      <div><strong>{report?.controls.filter(c => c.kind === 'more').length ?? '—'}</strong><span>More controls</span></div>
+      <div><strong>{report?.candidates.length ?? '—'}</strong><span>Sampled image candidates</span></div>
+      <div><strong>{report?.controls.filter(c => c.kind === 'more').length ?? '—'}</strong><span>Visible More controls</span></div>
       <div><strong>{report?.controls.filter(c => c.kind === 'download').length ?? '—'}</strong><span>Download</span></div>
       <div><strong>{report?.controls.filter(c => c.kind === '2k').length ?? '—'}</strong><span>2K Upscaled</span></div>
     </section>
-    <p className="hint">Candidates are unverified image elements, not a total project count. Open menus manually while observing. Closed menus may be absent from the DOM.</p>
+    <p className="hint">Candidates are a sample of up to 24 images, with manual image context and viewport images prioritized. They are not a project count. Open menus manually while observing. Closed menus may be absent from the DOM.</p>
+    <p className="hint">More counts can include the page header. Use the image's own menu. Hidden card controls remain in the diagnostic context even when absent from the visible count.</p>
     <div className="actions"><button className="primary" disabled={busy || !settingsReady} onClick={() => void run('scan')}>Inspect current DOM</button><button disabled={busy || !settingsReady} onClick={() => void run(session?.observing ? 'stop' : 'observe')}>{session?.observing ? 'Stop observing' : 'Observe menu changes'}</button></div>
     {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open inspector side panel</button>}
     <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <p className="hint">Debug changes apply on the next inspection action.</p>
+    {session?.observation?.lastError && <p className="error" role="alert">{session.observation.lastError}</p>}
     {error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {session && <>
+      {session.interactionSnapshots.length === 0 && <p className="notice">No manual interactions recorded yet. Click Observe menu changes, confirm the status says Observing, then open the image menus manually.</p>}
+      {!session.checkpoints.qualityVisible && <p className="hint">No visible 2K Upscaled snapshot captured yet. Open More → Download and leave the quality menu visible for at least half a second.</p>}
       <div className="report-heading"><h2>DOM evidence <small>{session.history.length} snapshots</small></h2><button disabled={busy} onClick={() => void copyReport()}>Copy JSON</button></div>
-      {report?.truncated && <p className="error">Report is bounded and was truncated. Inspect a smaller visible section.</p>}
+      {report?.truncated && <p className={report.truncationReasons.every(reason => reason.startsWith('Image diagnostic sample')) ? 'hint' : 'error'}>
+        {report.truncationReasons.join(' ')} This is a diagnostic sample, not full asset discovery.
+      </p>}
       <details onToggle={event => setShowJson(event.currentTarget.open)}><summary>Diagnostic JSON · format v2</summary>{showJson && <pre tabIndex={0}>{JSON.stringify(exportCapture(session), null, 2)}</pre>}</details>
       <p className="hint">Baseline and first Download/2K snapshots are retained. {session.historyDropped > 0 ? `${session.historyDropped} older rolling snapshots were dropped. ` : ''}Node IDs apply only to this page session; identifiers still need stability verification.</p>
       <button className="wide" disabled={busy} onClick={() => void run('clear')}>Clear capture history</button>

@@ -50,6 +50,7 @@ export interface InspectionReport {
   menuContexts: Array<{ menuNodeId: string; controlNodeIds: string[]; controlsTruncated: boolean }>;
   nodes: Record<string, ElementEvidence>;
   contextDepth: number;
+  sampling?: { limit: number; preferredMediaNodeId: string | null; strategy: 'manual-image-then-viewport' };
   manualInteraction: { type: 'click' | 'pointerover' | 'focusin'; capturedAt: string; targetNodeId: string; controlNodeId: string | null } | null;
   activeElementNodeId: string | null;
   scrollRegions: Array<ElementEvidence & { scrollTop: number; scrollHeight: number; clientHeight: number }>;
@@ -58,7 +59,14 @@ export interface InspectionReport {
   truncationReasons: string[];
   limitations: string[];
 }
+export interface ObservationState {
+  active: boolean;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  lastError: string | null;
+}
 export interface InspectorSession {
+  observation?: ObservationState;
   observing: boolean;
   debug: boolean;
   sessionId: string;
@@ -69,6 +77,7 @@ export interface InspectorSession {
   checkpoints: { initial: InspectionReport; downloadVisible?: InspectionReport; qualityVisible?: InspectionReport };
 }
 export interface EvidenceExport {
+  observation?: ObservationState;
   phase: 1;
   formatVersion: 2;
   sessionId: string;

@@ -16,7 +16,7 @@ export const PROBES = {
   },
   referenceAttributes: ['aria-controls', 'aria-owns', 'aria-labelledby', 'aria-describedby'],
   identifierName: /^data-(?:(?:asset|image|media|item|generation|resource|card)[-_])?(?:id|key|uuid)$/i,
-  maxCandidates: 150,
+  maxCandidates: 24,
   maxContextControls: 30,
   maxMenuControls: 50,
   maxMenus: 20,
