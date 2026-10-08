@@ -35,6 +35,12 @@ The inspector's original control-name matcher and offline coverage missed Downlo
 
 Follow the current README bulk workflow. Verify the first actual file, 2K dimensions, processing timing, and any error. Version 0.3.0 bulk implementation is described below; live success remains unverified.
 
+## Version 0.5.0 multi-selection evidence gap
+
+A read-only recheck of all supplied format-v2 captures found no selection/checked/pressed attribute names on captured nodes and no candidate selectedSignals. This is absence of evidence, not proof that Flow lacks multi-selection or ARIA selection state. The previous procedures captured menus and scrolling rather than a selected/unselected transition; CSS class values and native checked properties were also absent from their schema.
+
+No selected-image automation selector or count is inferred from screenshots, Angular classes, index order, or private application state. Version 0.5.0 adds separate scope toggles and a targeted read-only selection capture, including actual wrapper/card CSS classes, native checkbox states, and generic ARIA probes. Selected downloads remain unavailable pending baseline/selected/deselected and virtualization evidence. See README for the capture procedure. The probes are diagnostics only, not an automation contract.
+
 ## Version 0.3.0 collection evidence and bulk implementation
 
 The latest supplied 0.2.1 format-v2 capture has four snapshots with an active observer, no manual menu interaction, and changing image-element totals (133, 62, 148, 148). It is not download-success evidence. Earlier real 0.1.1 menu evidence remains the menu contract source.

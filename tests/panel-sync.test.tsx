@@ -59,7 +59,7 @@ it('syncs an idle panel with capture started elsewhere and copies fresh bound-ta
     // Even a prior bulk script must be refreshed; it would ignore the new folder.
     expect(button('Download All as 2K')).toBeUndefined();
     expect(mount.textContent).toContain('Refresh the Flow page');
-    backend = { ...backend, bulk: { ...backend.bulk!, folderSupport: 1 } };
+    backend = { ...backend, bulk: { ...backend.bulk!, folderSupport: 1, selectionCaptureSupport: 1 } };
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     const download = button('Download All as 2K');
     expect(download).toBeDefined();

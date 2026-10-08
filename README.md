@@ -1,12 +1,13 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.4.0** adds a destination-folder choice before **Download All as 2K**.
+Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.5.0** adds **All images / Selected images** scope toggles and targeted multi-selection inspection. **Selected-image downloading is blocked pending real selection DOM evidence.**
 
 Bulk automation is implemented and builds locally. **Authenticated Flow download/discovery behavior has not yet been verified end-to-end.** Local tests and DOM captures do not establish production readiness.
 
 ## Features
 
-- Automatic collection discovery on connection, scrolling lazy/virtualized content and deduplicating `data-media-id`.
+- Collection discovery on All-images Start or Refresh, scrolling lazy/virtualized content and deduplicating `data-media-id`. Opening the panel does not scroll or disturb a pre-existing selection.
+- Separate accessible All images / Selected images toggles. Selected mode currently offers read-only selection capture; its download button is explicitly unavailable.
 - One image at a time; reacquire the current card and wait for actual Chrome download completion before advancing.
 - Real discovered/completed/failed/skipped counts, current stage, bytes, download ID, and completion summary.
 - Pause at a safe boundary, resume, cancel preserving files, capped retries, and Retry Failed.
@@ -18,11 +19,11 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 
 ## Install and use in Chrome/Edge
 
-1. Build from source or extract the **0.4.0 ZIP**.
+1. Build from source or extract the **0.5.0 ZIP**.
 2. Open `chrome://extensions` or `edge://extensions`, enable **Developer mode**, and choose **Load unpacked**.
 3. Select **dist/** containing `manifest.json` (`flow-bulk-downloader/dist` inside the ZIP). When updating, reload the extension and **refresh the Flow page** to replace the old injected script.
-4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.4.0**.
-5. Prefer **Open download side panel**. Discovery automatically scrolls the supported collection and restores its original position. Wait for **READY** and the discovered count.
+4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.5.0**.
+5. Prefer **Open download side panel** and choose **All images**. To preview the image count, click **Refresh image collection** and wait for READY. Start also discovers the collection automatically if it has not been scanned. Discovery restores the original scroll position.
 6. In **Download folder**, choose a recent folder or enter a name such as `Flow Exports/Project 1`. Leave blank for the browser's configured Downloads folder. Click **Download All as 2K** once and accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
 7. Keep this project tab open and avoid interacting with its menus/scroll area or starting other Flow downloads. Closing the panel does not stop the queue.
 8. Verify files and 2K dimensions in Downloads (`Ctrl+J`). **Copy bulk result** exports actual counts, item attempts/errors, and sanitized download metadata.
@@ -30,6 +31,23 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 No image chooser or repeated manual menu clicking is required. If initial discovery failed, Start runs discovery and processing together. A READY list is reused for Start; Refresh image collection rescans without downloading. Starting a new export after completion rediscovers the collection and intentionally downloads again. Retry Failed preserves completed images; after a stopped queue, it also processes remaining queued images.
 
 Minimum Chrome/Edge version: 116. Redirects to other hostnames are refused. Browser save-location prompts and multiple-download approval are normal browser behavior and are not bypassed; disable “ask where to save each file” in browser settings for unattended saves.
+
+## Selected images — real evidence needed
+
+The existing captures contain no `aria-selected`, `aria-checked`, `aria-pressed`, or selected-state candidate signals. They were recorded for menus and scrolling, without a multi-selection procedure. No Flow multi-selection selector has been invented. **Selected images is a separate mode, but Download Selected as 2K remains disabled.** The engine also rejects selected-scope starts before discovery/downloads; it never falls back to exporting all images.
+
+To provide the missing evidence, load 0.5.0 and refresh Flow. Use the side panel so the same cards remain visible:
+
+1. Choose **Selected images** in the extension. Finish/cancel any running queue first.
+2. Deselect all images **in Flow**, then click **Capture baseline**.
+3. Select two visible generated images **in Flow**, then click **Capture selected**.
+4. Deselect one of those images **in Flow**, then click **Capture deselected**.
+5. Optionally scroll so a selected card unmounts/remounts, then click **Capture after scrolling** to establish virtualization behavior.
+6. Click **Copy selection JSON**, review it, and share it for implementation. If clipboard access fails, select the displayed JSON manually.
+
+Each action reads actual image/card/wrapper relationships, CSS classes, generic ARIA state, and native checkbox `checked`/`indeterminate` properties. It does not select images, scroll, open menus, or download. The capture prioritizes viewport cards, is bounded/truncation-aware, retains up to eight snapshots in the page session across panel closure, and resets after project navigation/reload. Classes and media identifiers may be private; image URLs, prompts, form values, cookies, and tokens are not read into the capture. This is a separate `selection-inspection` format; the Phase 1 `inspect:evidence` validator does not consume it.
+
+Real selected/unselected/deselected states and scrolling behavior are required to establish which DOM signals belong to an image and whether offscreen selections can be enumerated reliably. Selected-image processing will use a fixed selected-ID list with the existing sequential engine after that contract is verified. No selected-count or successful selected export is simulated.
 
 ## Destination folders
 
@@ -97,6 +115,10 @@ src/shared/automation-client.ts      Bound-tab exact-host transport
 src/shared/download-folder.ts        Relative path validation and destination checks
 src/content/content.ts              Guarded injection and message lifecycle
 src/content/inspector.ts             Read-only developer diagnostics
+src/content/selection-inspector.ts   Bounded read-only multi-selection evidence
+src/popup/SelectionInspector.tsx     Manual checkpoints and selection JSON export
+src/shared/selection-types.ts        Selection evidence and download-scope contracts
+src/shared/selection-client.ts       Bound-tab read-only selection transport
 public/manifest.json                 MV3 entries and minimal permissions
 scripts/verify-build.mjs             Manifest/bundle/security invariants
 ```
@@ -129,7 +151,8 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Troubleshooting
 
-- **Old inspector/chooser or missing folder support:** load 0.4.0 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
+- **Old inspector/chooser or missing scope controls:** load 0.5.0 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
+- **Selected download unavailable:** provide the multi-selection capture above. The earlier menu/scroll JSON does not establish selection semantics.
 - **File outside chosen folder:** check browser save-location prompts and other extensions that rename downloads. The queue stops instead of claiming that folder export succeeded. Check the actual file before retrying.
 - **Collection not found/ambiguous:** open an image project on exact Flow and capture scroll ancestry; do not guess a body/window scroller.
 - **Discovery limit/timeout:** list is incomplete; inspect mounting/lazy loading and refresh. No partial list is claimed complete.
@@ -141,4 +164,4 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Validation status
 
-TypeScript, production build, dependency installation, and **93 local tests** pass. Tests verify queue/API/extension-UI transport behavior, folder validation/routing, and final-path checks, not live Flow selectors, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
+TypeScript, production build, dependency installation, and **99 local tests** pass. Tests verify queue/API/extension-UI transport behavior, scope isolation/refusal, read-only selection transport, folder validation/routing, and final-path checks, not live Flow selection semantics, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.

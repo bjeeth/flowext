@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Current 0.4.0 results: dependency installation, TypeScript/production build, and 93 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, or folder-creation success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
+Current 0.5.0 results: dependency installation, TypeScript/production build, and 99 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, selected-image, or folder-creation success is claimed. Selected downloads remain blocked without actual multi-selection evidence. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
 
 ## Local checks
 
@@ -81,3 +81,12 @@ Live Chrome/Edge checks remain pending:
 - [ ] Another non-Flow download retains its normal target; avoid concurrent Flow downloads because attribution has no initiating tab ID.
 - [ ] Override the destination in a browser save prompt; a file completing elsewhere produces an error instead of a successful folder export.
 - [ ] Folder behavior survives worker restart; actual files, paths, counts, and 2K dimensions match the UI.
+
+## Version 0.5.0 scope controls and selection inspection
+
+New tests use the actual empty non-Flow document and actual extension UI with empty transport metadata. They verify mutually exclusive pressed-state toggles, no automatic discovery on panel open, disabled selected downloads, no Downloads permission request or bulk start from selected mode, read-only checkpoint transport, returning to All images, refusal of selected scope in the engine before any discovery/actions, refusal outside exact Flow, and clear failure without a real collection. No mock Flow DOM/assets or guessed selection selectors are added. These checks do not prove real Flow multi-selection semantics.
+
+- [ ] Follow README's baseline → two selected → one deselected → optional scrolled procedure and share real selection JSON.
+- [ ] Establish the actual selected-state signal, its owning card, stable media mapping, deselection behavior, and whether virtualized selections remain discoverable.
+- [ ] After implementing from evidence, verify Selected exports precisely the selected IDs, All exports the full supported collection, and neither changes the other mode's scope.
+- [ ] Verify no-selection behavior, offscreen selected images, selection changes during discovery, fixed queue membership, folder routing, pause/resume/cancel, retries, and actual browser-completed files.

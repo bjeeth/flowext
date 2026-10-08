@@ -48,7 +48,7 @@ it.each([
     if (allowed) {
       const folder = choice === 'new' ? 'New Export/Subfolder' : choice === 'default' ? '' : 'Flow/Project';
       expect(save).toHaveBeenCalledWith({ downloadFolder: folder, recentDownloadFolders: choice === 'new' ? [folder, 'Flow/Project'] : ['Flow/Project'] });
-      expect(sendMessage).toHaveBeenLastCalledWith(12, { type: 'FLOW_BULK', action: 'start', retries: 2, debug: false, folder });
+      expect(sendMessage).toHaveBeenLastCalledWith(12, { type: 'FLOW_BULK', action: 'start', retries: 2, debug: false, folder, scope: 'all' });
       expect(update.mock.calls[0][0].stage).toBe('DISCOVERING');
     } else {
       expect(sendMessage).not.toHaveBeenCalled(); expect(mount.textContent).toContain('Downloads access was declined');

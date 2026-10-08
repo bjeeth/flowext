@@ -8,6 +8,13 @@ export const PROBES = {
   identifierAttributes: ['id', 'data-testid', 'data-asset-id', 'data-image-id'],
   safeAttributes: ['aria-controls', 'aria-owns', 'aria-labelledby', 'aria-describedby', 'aria-busy', 'inert', 'hidden', 'disabled', 'loading', 'decoding', 'id', 'role', 'data-testid', 'data-asset-id', 'data-image-id', 'aria-haspopup', 'aria-expanded', 'aria-disabled', 'aria-selected', 'aria-pressed', 'data-state', 'type'],
   selectedAttributes: ['aria-selected', 'aria-pressed', 'data-state'],
+  // Generic read-only probes. These are not an established Flow multi-selection contract.
+  selectionControls: 'input[type="checkbox"], input[type="radio"], [role="checkbox"], [role="radio"], [role="option"], [aria-selected], [aria-checked], [aria-pressed], [data-selected]',
+  selectionAttributes: ['id', 'role', 'aria-selected', 'aria-checked', 'aria-pressed', 'aria-disabled', 'aria-busy', 'data-state', 'data-selected', 'type'],
+  maxSelectionCards: 200,
+  maxSelectionDescendants: 80,
+  maxSelectionControls: 100,
+  maxSelectionNodes: 1200,
   names: {
     more: /^(?:more(?: options| actions)?|more_horiz|more_vert|⋮|…|\.\.\.)$/i,
     download: /^download(?: image)?$/i,

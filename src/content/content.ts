@@ -8,6 +8,8 @@ import { SingleImageAutomation } from './single-automation';
 import type { AutomationCommand, AutomationReply } from '../shared/automation-types';
 import { BulkAutomation } from './bulk-automation';
 import type { BulkCommand, BulkReply } from '../shared/bulk-types';
+import { inspectSelection } from './selection-inspector';
+import type { SelectionCapture, SelectionCommand, SelectionReply } from '../shared/selection-types';
 
 const global = globalThis as typeof globalThis & { __flowBulkInspectorInstalled?: boolean };
 if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
@@ -27,7 +29,28 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   let capture = new CaptureHistory(latest);
   const single = new SingleImageAutomation(new FlowDOMAdapter(document), () => location.href);
   const bulk = new BulkAutomation(document, new FlowDOMAdapter(document), () => location.href);
+  let selectionCapture: SelectionCapture = { protocol: 1, buildVersion: installedBuildVersion, snapshots: [], dropped: 0 };
+  let selectionUrl = location.href;
   single.refresh();
+  chrome.runtime.onMessage.addListener((message: SelectionCommand, sender, respond: (reply: SelectionReply) => void) => {
+    if (message?.type !== 'FLOW_SELECTION') return;
+    if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')) || !isFlowPage(location.href)) return;
+    try {
+      if (selectionUrl !== location.href) {
+        selectionCapture = { protocol: 1, buildVersion: installedBuildVersion, snapshots: [], dropped: 0 };
+        selectionUrl = location.href;
+      }
+      if (message.action !== 'get' && (bulk.session().active || single.isActive())) throw new Error('Finish or cancel downloads before capturing manual selection.');
+      if (message.action === 'capture') {
+        if (!message.checkpoint || !['baseline', 'selected', 'deselected', 'scrolled'].includes(message.checkpoint)) throw new Error('Choose a selection capture checkpoint.');
+        const snapshot = inspectSelection(document, location.href, message.checkpoint);
+        selectionCapture.snapshots.push(snapshot);
+        if (selectionCapture.snapshots.length > 8) { selectionCapture.snapshots.shift(); selectionCapture.dropped++; }
+      } else if (message.action === 'clear') selectionCapture = { protocol: 1, buildVersion: installedBuildVersion, snapshots: [], dropped: 0 };
+      else if (message.action !== 'get') throw new Error('Unknown selection capture command.');
+      respond({ ok: true, capture: selectionCapture });
+    } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : 'Selection inspection failed.' }); }
+  });
   chrome.runtime.onMessage.addListener((message: BulkCommand, sender, respond: (r: BulkReply) => void) => {
     if (message?.type !== 'FLOW_BULK') return;
     if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')) || !isFlowPage(location.href)) return;
@@ -37,7 +60,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
         case 'get': result = bulk.session(); break;
         case 'start': case 'discover':
           if (single.isActive()) throw new Error('A developer single-image operation is already active.');
-          stop(); result = bulk.start(message.action === 'start', message.retries ?? 2, message.debug === true, message.folder ?? ''); break;
+          stop(); result = bulk.start(message.action === 'start', message.retries ?? 2, message.debug === true, message.folder ?? '', message.scope ?? 'all'); break;
         case 'pause': result = bulk.pause(); break;
         case 'resume': result = bulk.resume(); break;
         case 'cancel': result = bulk.cancel(); break;
