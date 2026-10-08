@@ -1,6 +1,6 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.5.0** adds **All images / Selected images** scope toggles and targeted multi-selection inspection. **Selected-image downloading is blocked pending real selection DOM evidence.**
+Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.5.1** refreshes the dark popup and side panel with clear export modes, grouped settings, inline folder validation, and focused progress/results. **Selected-image downloading is blocked pending real selection DOM evidence.**
 
 Bulk automation is implemented and builds locally. **Authenticated Flow download/discovery behavior has not yet been verified end-to-end.** Local tests and DOM captures do not establish production readiness.
 
@@ -11,7 +11,7 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 - One image at a time; reacquire the current card and wait for actual Chrome download completion before advancing.
 - Real discovered/completed/failed/skipped counts, current stage, bytes, download ID, and completion summary.
 - Pause at a safe boundary, resume, cancel preserving files, capped retries, and Retry Failed.
-- Popup/side panel; automation continues inside Flow after closing extension UI.
+- Refined popup/side panel with accessible icons, focused export controls, elapsed time, readable transfer sizes, and friendly status messages. Automation continues inside Flow after closing extension UI.
 - Stored debug/retry preferences and optional Downloads access requested by Start/Retry.
 - Choose a recent download subfolder or enter a new one; nested folders are created on the first saved file. Flow filenames and extensions are preserved, and duplicates are uniquified.
 - Developer DOM inspector retained behind collapsed Developer tools.
@@ -19,11 +19,11 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 
 ## Install and use in Chrome/Edge
 
-1. Build from source or extract the **0.5.0 ZIP**.
+1. Build from source or extract the **0.5.1 ZIP**.
 2. Open `chrome://extensions` or `edge://extensions`, enable **Developer mode**, and choose **Load unpacked**.
 3. Select **dist/** containing `manifest.json` (`flow-bulk-downloader/dist` inside the ZIP). When updating, reload the extension and **refresh the Flow page** to replace the old injected script.
-4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.5.0**.
-5. Prefer **Open download side panel** and choose **All images**. To preview the image count, click **Refresh image collection** and wait for READY. Start also discovers the collection automatically if it has not been scanned. Discovery restores the original scroll position.
+4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.5.1**.
+5. Use the top-right **Open download side panel** icon and choose **All images**. To preview the image count, click the refresh icon (**Refresh image collection**) and wait for the ready status. Start also discovers the collection automatically if it has not been scanned. Discovery restores the original scroll position.
 6. In **Download folder**, choose a recent folder or enter a name such as `Flow Exports/Project 1`. Leave blank for the browser's configured Downloads folder. Click **Download All as 2K** once and accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
 7. Keep this project tab open and avoid interacting with its menus/scroll area or starting other Flow downloads. Closing the panel does not stop the queue.
 8. Verify files and 2K dimensions in Downloads (`Ctrl+J`). **Copy bulk result** exports actual counts, item attempts/errors, and sanitized download metadata.
@@ -36,9 +36,9 @@ Minimum Chrome/Edge version: 116. Redirects to other hostnames are refused. Brow
 
 The existing captures contain no `aria-selected`, `aria-checked`, `aria-pressed`, or selected-state candidate signals. They were recorded for menus and scrolling, without a multi-selection procedure. No Flow multi-selection selector has been invented. **Selected images is a separate mode, but Download Selected as 2K remains disabled.** The engine also rejects selected-scope starts before discovery/downloads; it never falls back to exporting all images.
 
-To provide the missing evidence, load 0.5.0 and refresh Flow. Use the side panel so the same cards remain visible:
+To provide the missing evidence, load 0.5.1 and refresh Flow. Use the side panel so the same cards remain visible:
 
-1. Choose **Selected images** in the extension. Finish/cancel any running queue first.
+1. Choose **Selected images**, then expand **Help enable selected downloads**. Finish/cancel any running queue first.
 2. Deselect all images **in Flow**, then click **Capture baseline**.
 3. Select two visible generated images **in Flow**, then click **Capture selected**.
 4. Deselect one of those images **in Flow**, then click **Capture deselected**.
@@ -110,6 +110,8 @@ src/content/selectors.ts            Centralized observed selectors and bounds
 src/background/download-monitor.ts Serialized browser events and trusted session watch
 src/background/download-policy.ts  Source/time attribution and sanitized records
 src/popup/BulkPanel.tsx              Primary bulk controls, progress/settings/results
+src/popup/presentation.ts           Status, measured duration, and byte-size formatting
+src/popup/Icon.tsx                  Accessible decorative SVG icons
 src/shared/bulk-types.ts             Asset/queue/message contracts
 src/shared/automation-client.ts      Bound-tab exact-host transport
 src/shared/download-folder.ts        Relative path validation and destination checks
@@ -133,11 +135,13 @@ The old single-image engine remains internal development code; the product UI us
 | `scripting` | Injects page automation/inspector after the user action. |
 | `storage` | Debug/retry/folder preferences, recent folder names, and trusted active download-watch state. |
 | `sidePanel` | Persistent controls beside the project. |
-| Optional `downloads` | Requested on Start/Retry; real lifecycle events, matching record search, and folder filename suggestions. |
+| Optional `downloads` | Requested on Start/Retry; real lifecycle events, matching record search, folder filename suggestions, and the completion screen’s Open Downloads folder action. |
 
 No `tabs` permission, persistent/blanket host access, clipboard permission, private API credential access, or external uploads. No cookies/tokens are read or authentication/access/upgrade controls bypassed. Bulk results omit media IDs, URLs, and full local paths; developer DOM captures may contain identifier values. Review them before sharing and never commit real captures.
 
 ## Developer inspector and selector maintenance
+
+Retry count lives in **Export settings**. Debug logging is inside **Developer tools**; its switch persists locally. While an export runs, destination is shown as a read-only summary and pause/resume/cancel controls take priority. Successful/failed/skipped counts remain distinct, and a new export is labeled explicitly to prevent accidental repeats.
 
 Finish/cancel bulk processing, expand Developer tools, click Start menu capture, and manually expose a representative More → Download → 2K sequence, leaving menus visible at least half a second. Stop and copy JSON. This diagnostic procedure is needed only for changed/missing UI behavior; the observer stops after ten minutes.
 
@@ -151,7 +155,7 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Troubleshooting
 
-- **Old inspector/chooser or missing scope controls:** load 0.5.0 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
+- **Old inspector/chooser or missing scope controls:** load 0.5.1 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
 - **Selected download unavailable:** provide the multi-selection capture above. The earlier menu/scroll JSON does not establish selection semantics.
 - **File outside chosen folder:** check browser save-location prompts and other extensions that rename downloads. The queue stops instead of claiming that folder export succeeded. Check the actual file before retrying.
 - **Collection not found/ambiguous:** open an image project on exact Flow and capture scroll ancestry; do not guess a body/window scroller.
@@ -164,4 +168,4 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Validation status
 
-TypeScript, production build, dependency installation, and **99 local tests** pass. Tests verify queue/API/extension-UI transport behavior, scope isolation/refusal, read-only selection transport, folder validation/routing, and final-path checks, not live Flow selection semantics, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
+TypeScript, production build, dependency installation, and **102 local tests** pass. Tests verify queue/API/extension-UI transport behavior, scope isolation/refusal, read-only selection transport, folder validation/routing, and final-path checks, not live Flow selection semantics, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.

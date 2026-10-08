@@ -28,6 +28,7 @@ it('exposes mutually exclusive scope toggles, prevents selected-to-all fallback,
     expect(button('All images').getAttribute('aria-pressed')).toBe('false');
     expect(button('Download Selected as 2K').disabled).toBe(true);
     expect(button('Refresh image collection')).toBeUndefined();
+    await act(async () => { (mount.querySelector('.selection-guide') as HTMLDetailsElement).open = true; });
     await act(async () => { button('Download Selected as 2K').click(); button('Capture selected').click(); });
     expect(sendMessage).toHaveBeenLastCalledWith(12, { type: 'FLOW_SELECTION', action: 'capture', checkpoint: 'selected' });
     expect(request).not.toHaveBeenCalled();

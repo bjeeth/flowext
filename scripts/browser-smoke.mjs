@@ -30,11 +30,13 @@ try {
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
   await page.getByRole('button', { name: 'Reconnect to Flow' }).click();
   await page.getByRole('alert').filter({ hasText: 'Open https://flow.google.com/' }).waitFor();
-  await page.getByRole('checkbox', { name: 'Debug console logging' }).check();
+  await page.locator('.developer-tools > summary').click();
+  await page.getByRole('switch', { name: 'Debug console logging' }).check();
   await page.waitForFunction(async () => (await chrome.storage.local.get('debug')).debug === true);
   await page.reload();
-  await page.getByRole('checkbox', { name: 'Debug console logging' }).waitFor();
-  assert(await page.getByRole('checkbox', { name: 'Debug console logging' }).isChecked(), 'Debug preference did not persist');
+  await page.locator('.developer-tools > summary').click();
+  await page.getByRole('switch', { name: 'Debug console logging' }).waitFor();
+  assert(await page.getByRole('switch', { name: 'Debug console logging' }).isChecked(), 'Debug preference did not persist');
   await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Open download side panel' }).count(), 0);

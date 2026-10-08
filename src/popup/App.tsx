@@ -4,6 +4,7 @@ import { inspectTab, liveMenuCapture } from '../shared/client';
 import type { InspectorCommand, InspectorSession } from '../shared/types';
 import './styles.css';
 import { BulkPanel } from './BulkPanel';
+import { Icon } from './Icon';
 
 export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [session, setSession] = useState<InspectorSession>();
@@ -33,7 +34,12 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
         // Reopening either surface attaches to the actual page session, without starting it.
         const current = await inspectTab('get', preference);
         if (mounted.current) { setSession(current.session); setTabId(current.tabId); }
-      } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : 'Could not connect to Flow.'); }
+      } catch (e) {
+        if (mounted.current) {
+          const message = e instanceof Error ? e.message : 'Could not connect to Flow.';
+          if (!message.startsWith('Open https://flow.google.com/')) setError(message);
+        }
+      }
       finally { if (mounted.current) setSettingsReady(true); }
     })();
     return () => { mounted.current = false; };
@@ -109,17 +115,21 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     catch { setError('Could not save debug setting.'); }
   }
   const report = session?.latest;
-  return <main>
-    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Bulk 2K downloads · v{buildVersion}</p></div></header>
-    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : hasBulk ? 'Flow connected' : session ? 'Refresh Flow to activate bulk automation' : 'Open a Flow project to begin.'}</div>
+  return <main data-surface={sidepanel ? 'sidepanel' : 'popup'}>
+    <header className="app-header"><div className="brand-mark"><Icon name="download" size={22} /></div><div className="brand-title"><h1>Flow Bulk Downloader</h1><p>2K image exports <span className="version">v{buildVersion}</span></p></div>
+      {!sidepanel && <button className="icon-button panel-launch" aria-label="Open download side panel" title="Open download side panel" disabled={windowId === undefined} onClick={() => void openPanel()}><Icon name="panel" /></button>}
+    </header>
+    <div className="app-content">
+    <div className={`connection-status ${hasBulk ? 'connected' : ''}`} role="status"><span className="status-dot" />{!settingsReady ? 'Connecting to Flow…' : hasBulk ? 'Flow connected' : session ? 'Refresh Flow to activate bulk automation' : 'Open a Flow project to begin.'}</div>
     {session && !hasBulk && <p className="error" role="alert">This tab still has page script {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. The updated download controls require the new page script.</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {hasBulk && session?.bulk && tabId !== undefined && <BulkPanel tabId={tabId} session={session.bulk} debug={debug} buildVersion={buildVersion} onUpdate={bulk => setSession(previous => previous ? { ...previous, bulk } : previous)} />}
-    {settingsReady && !hasBulk && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
-    {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open download side panel</button>}
-    <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
+    {!hasBulk && <section className="empty-state"><span className="empty-icon"><Icon name={session ? 'refresh' : 'grid'} size={28} /></span><h2>{!settingsReady ? 'Connecting to your project' : session ? 'Refresh your Flow tab' : 'Open your Flow project'}</h2><p>{!settingsReady ? 'Checking the current tab for a Flow project.' : session ? 'Refresh the project after an extension update, then reconnect.' : 'Open a project with generated images, then click the extension from that tab.'}</p>
+      {settingsReady && <div className="actions">{!session && <a className="button primary" href="https://flow.google.com/" target="_blank" rel="noreferrer">Open Google Flow</a>}<button disabled={busy} onClick={() => void run('get')}><Icon name="refresh" size={16} />Reconnect to Flow</button></div>}
+    </section>}
     <details className="developer-tools" onToggle={event => setInspectorOpen(event.currentTarget.open)}><summary>Developer tools · DOM inspector{session?.observing ? ' · recording' : ''}</summary>
     {inspectorOpen && <>
+    <label className="setting"><span>Debug console logging<small id="debug-help">Write detailed diagnostics to the console</small></span><input type="checkbox" role="switch" aria-label="Debug console logging" aria-describedby="debug-help" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture image and menu structure when diagnosing Flow UI changes.</p></section>
     <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
     <section className="stats" aria-label="Inspection results">
@@ -131,8 +141,8 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     <p className="hint">Candidates are a sample of up to 24 images, with manual image context and viewport images prioritized. They are not a project count. Open menus manually while observing. Closed menus may be absent from the DOM.</p>
     <p className="hint">More counts can include the page header. Use the image's own menu. Hidden card controls remain in the diagnostic context even when absent from the visible count.</p>
     <div className="actions">
-      <button className="primary" disabled={busy || !settingsReady} onClick={() => void (session?.observing ? stopAndCopy() : run('observe'))}>{session?.observing ? 'Stop and copy JSON' : 'Start menu capture'}</button>
-      <button disabled={busy || !settingsReady} onClick={() => void run('scan')}>Take DOM snapshot</button>
+      <button className="primary" disabled={busy || !settingsReady || session?.bulk?.active} onClick={() => void (session?.observing ? stopAndCopy() : run('observe'))}>{session?.observing ? 'Stop and copy JSON' : 'Start menu capture'}</button>
+      <button disabled={busy || !settingsReady || session?.bulk?.active} onClick={() => void run('scan')}>Take DOM snapshot</button>
       {session?.observing && <button disabled={busy} onClick={() => void run('stop')}>Stop observing</button>}
     </div>
     <p className="hint">Debug changes apply on the next inspection action.</p>
@@ -152,6 +162,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     </>}
     </>}
     </details>
-    <footer>The queue runs inside Flow and continues if you close this panel. Keep the project tab open until processing finishes.</footer>
+    <footer><Icon name="info" size={13} /><span>{hasBulk ? 'Keep your Flow tab open. Closing this panel won’t stop an export.' : 'Automates Flow’s normal download controls. Sign in through Google Flow.'}</span></footer>
+    </div>
   </main>;
 }

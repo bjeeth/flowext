@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Current 0.5.0 results: dependency installation, TypeScript/production build, and 99 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, selected-image, or folder-creation success is claimed. Selected downloads remain blocked without actual multi-selection evidence. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
+Current 0.5.1 results: dependency installation, TypeScript/production build, and 102 local tests passed. The actual built UI also passed Chromium layout checks with empty API transport metadata at 320/400px popup and 540px side-panel widths. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, selected-image, or folder-creation success is claimed. Selected downloads remain blocked without actual multi-selection evidence. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional extension-install smoke testing; policy is unchanged.
 
 ## Local checks
 
@@ -90,3 +90,11 @@ New tests use the actual empty non-Flow document and actual extension UI with em
 - [ ] Establish the actual selected-state signal, its owning card, stable media mapping, deselection behavior, and whether virtualized selections remain discoverable.
 - [ ] After implementing from evidence, verify Selected exports precisely the selected IDs, All exports the full supported collection, and neither changes the other mode's scope.
 - [ ] Verify no-selection behavior, offscreen selected images, selection changes during discovery, fixed queue membership, folder routing, pause/resume/cancel, retries, and actual browser-completed files.
+
+## Version 0.5.1 UI validation
+
+The refreshed actual UI was rendered in Chromium over localhost with empty Chrome API transport metadata, without loading the extension or constructing any Flow DOM/assets/downloads. Popup widths of 320/400px and a 540px side panel passed horizontal-overflow checks, primary-action keyboard focus, mutually exclusive scopes, selected-mode refusal, the expandable selection guide, the correct no-Flow link/state, and zero page JavaScript errors. Screenshots were visually reviewed; idle actions no longer overlap settings. This is layout validation, not an authenticated Flow or managed extension-install pass.
+
+Existing transport tests still verify permission handling, folder persistence/invalid destinations, bound-tab synchronization, selection capture, and all/selected isolation. New presentation tests ensure failed/skipped exports do not appear fully successful, a pending pause cannot hide an error, elapsed time uses actual timestamps and freezes on completion, and invalid byte/time data is not presented as a real measurement.
+
+Live acceptance remains pending: actual download progress/completion/error summaries, pause/resume/cancel, the native Open Downloads folder action, popup/side-panel behavior inside Chrome/Edge, keyboard navigation at browser zoom, and real selected-image evidence. The optional extension smoke test now opens Developer tools before toggling the persisted Debug logging switch.

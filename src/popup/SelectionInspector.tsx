@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { selectionCommand } from '../shared/selection-client';
 import type { SelectionCapture, SelectionCheckpoint } from '../shared/selection-types';
+import { Icon } from './Icon';
 
 export function SelectionInspector({ tabId }: { tabId: number }) {
   const [capture, setCapture] = useState<SelectionCapture>();
@@ -36,17 +37,20 @@ export function SelectionInspector({ tabId }: { tabId: number }) {
     finally { setBusy(false); }
   }
   return <section className="selection-inspector" aria-label="Flow multi-selection inspection">
-    <p className="notice">Selected-image downloading needs Flow’s real selection DOM. It is unavailable in this build; All images remains available.</p>
-    <p className="hint">Keep the same cards visible. Deselect all in Flow and capture baseline; select two images and capture selected; deselect one and capture deselected. These controls only read the page.</p>
-    <div className="selection-checkpoints">
-      <button disabled={busy} onClick={() => void record('baseline')}>Capture baseline</button>
-      <button disabled={busy} onClick={() => void record('selected')}>Capture selected</button>
-      <button disabled={busy} onClick={() => void record('deselected')}>Capture deselected</button>
-      <button disabled={busy} onClick={() => void record('scrolled')}>Capture after scrolling</button>
-    </div>
-    <p className="hint">{capture?.snapshots.length ?? 0} snapshots captured{capture?.dropped ? ` · ${capture.dropped} older snapshots dropped` : ''}. Rendered cards only; this is not a selected-image count.</p>
-    <button className="wide" disabled={busy || !capture?.snapshots.length} onClick={() => void copy()}>Copy selection JSON</button>
-    <button className="wide" disabled={busy || !capture?.snapshots.length} onClick={() => void clear()}>Clear selection capture</button>
+    <div className="selection-unavailable"><Icon name="info" /><div><strong>Selected downloads need setup</strong><p>We still need to verify how Flow marks selected images. Use All images for now.</p></div></div>
+    <details className="selection-guide"><summary>Help enable selected downloads</summary>
+      <p className="hint">Use the side panel and keep the same cards visible. Each capture only reads the page; it does not download anything.</p>
+      <ol className="capture-steps">{([
+        { checkpoint: 'baseline', title: 'Clear the selection', detail: 'Deselect all images in Flow.', button: 'Capture baseline' },
+        { checkpoint: 'selected', title: 'Select two images', detail: 'Select two visible images in Flow.', button: 'Capture selected' },
+        { checkpoint: 'deselected', title: 'Deselect one image', detail: 'Leave one of those images selected.', button: 'Capture deselected' },
+      ] as const).map((step, index) => <li key={step.checkpoint}><span className="step-number">{index + 1}</span><div><strong>{step.title}</strong><p>{step.detail}</p>
+        <button disabled={busy} onClick={() => void record(step.checkpoint)}>{step.button}</button>{capture?.snapshots.some(snapshot => snapshot.checkpoint === step.checkpoint) && <span className="captured-label"><Icon name="check" size={12} />Captured</span>}
+      </div></li>)}</ol>
+      <details className="optional-capture"><summary>Optional: check selections after scrolling</summary><p className="hint">Scroll away from a selected image and back, then capture it again.</p><button disabled={busy} onClick={() => void record('scrolled')}>Capture after scrolling</button></details>
+      <p className="hint">{capture?.snapshots.length ?? 0} snapshots captured{capture?.dropped ? ` · ${capture.dropped} older snapshots dropped` : ''}. Capture labels do not verify the selected count.</p>
+      <div className="capture-actions"><button disabled={busy || !capture?.snapshots.length} onClick={() => void copy()}><Icon name="report" size={16} />Copy selection JSON</button><button className="text-button" disabled={busy || !capture?.snapshots.length} onClick={() => void clear()}>Clear selection capture</button></div>
+    </details>
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="notice" role="status">{notice}</p>}
     {json && <details open><summary>Selection evidence</summary><pre tabIndex={0}>{json}</pre></details>}
