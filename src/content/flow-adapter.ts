@@ -95,6 +95,52 @@ export class FlowDOMAdapter {
       return menu;
     }, TIMEOUTS.menu, signal, 'Image menu did not open or expose its aria-controls relationship.');
   }
+  private editorMediaId?: string;
+  private editor(): HTMLElement {
+    const pages = Array.from(this.doc.querySelectorAll<HTMLElement>('flow-editor-page')).filter(isVisible);
+    if (pages.length !== 1) throw new Error('Could not uniquely identify the image editor.');
+    return pages[0];
+  }
+  assertEditorImage() {
+    const images = Array.from(this.editor().querySelectorAll<HTMLImageElement>('img.read-only-image')).filter(isVisible);
+    if (images.length !== 1) throw new Error('Could not uniquely identify the editor image.');
+    const url = new URL(images[0].src);
+    if (url.protocol !== 'https:' || url.hostname !== 'flow-content.google' || url.pathname !== `/image/${this.editorMediaId}`) throw new Error('Editor image does not match the queued media ID. No quality action was clicked.');
+  }
+  async openEditorDownload(key: string, signal: AbortSignal, quality: DownloadQuality): Promise<HTMLElement> {
+    if (this.doc.querySelector('flow-editor-page')) throw new Error('Return to the project grid before starting an export.');
+    const image = this.image(key);
+    if (this.doc.querySelector('flow-tile-container.selected')) throw new Error('Clear selection in Flow after capturing the selected image list, then start the export.');
+    this.editorMediaId = image.getAttribute('data-media-id')!;
+    signal.throwIfAborted(); image.click();
+    await boundedWait(() => {
+      const pages = Array.from(this.doc.querySelectorAll<HTMLElement>('flow-editor-page')).filter(isVisible);
+      if (pages.length !== 1) return;
+      const images = Array.from(pages[0].querySelectorAll<HTMLImageElement>('img.read-only-image')).filter(isVisible);
+      if (images.length !== 1 || !images[0].complete || !images[0].naturalWidth) return;
+      this.assertEditorImage(); return true;
+    }, 15000, signal, 'The queued image did not open in the editor.');
+    const buttons = Array.from(this.editor().querySelectorAll<HTMLElement>('flow-editor-header button[aria-label="Download media"]')).filter(isVisible);
+    if (buttons.length !== 1) throw new Error('Editor Download media button is missing or ambiguous.');
+    const before = new Set(this.visibleMenus());
+    this.enabled(buttons[0]); this.assertEditorImage(); signal.throwIfAborted(); buttons[0].click();
+    return boundedWait(() => {
+      this.assertEditorImage();
+      const added = this.visibleMenus().filter(menu => !before.has(menu));
+      if (added.length > 1) throw new Error('Multiple editor quality menus opened.');
+      return added.length === 1 && this.findItem(added[0], quality) ? added[0] : undefined;
+    }, TIMEOUTS.menu, signal, `Editor ${quality.toUpperCase()} option did not appear.`);
+  }
+  async returnToGrid(signal: AbortSignal) {
+    if (!this.editorMediaId) return;
+    const page = this.editor();
+    const buttons = Array.from(page.querySelectorAll<HTMLElement>('flow-navigation-header button[aria-label="Back button to go to previous page"]')).filter(isVisible);
+    if (buttons.length !== 1) throw new Error('Editor Back button is missing or ambiguous. Return to the grid before retrying.');
+    this.enabled(buttons[0]); signal.throwIfAborted(); buttons[0].click();
+    await boundedWait(() => !Array.from(this.doc.querySelectorAll('flow-editor-page')).some(isVisible) && this.doc.querySelector(FLOW.collection) ? true : undefined,
+      TIMEOUTS.menu, signal, 'Flow did not return to the project grid.');
+    this.editorMediaId = undefined;
+  }
   async openDownloadMenu(menu: HTMLElement, signal: AbortSignal, quality: DownloadQuality = '2k'): Promise<HTMLElement> {
     const download = this.uniqueItem(menu, 'download');
     // Flow can omit aria-haspopup; validate the newly opened quality menu instead.

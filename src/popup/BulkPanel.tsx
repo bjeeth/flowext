@@ -61,7 +61,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
         onUpdate(await bulkCommand(tabId, action, retries, debug, destination, scope, action === 'retry' ? session.settings.quality ?? '2k' : quality));
         return;
       }
-      onUpdate(await bulkCommand(tabId, action, retries, debug));
+      onUpdate(await bulkCommand(tabId, action, retries, debug, '', scope, quality));
     } catch (e) { setError(e instanceof Error ? e.message : 'Bulk operation failed.'); }
     finally { setBusy(false); setPendingAction(undefined); }
   }
@@ -122,7 +122,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       <div className="collection-count"><span className="surface-icon"><Icon name="grid" /></span><div><strong>{session.discoveryComplete ? `${total.toLocaleString()} images` : total ? `${total.toLocaleString()} found` : session.stage === 'IDLE' ? 'Not scanned yet' : 'Scan incomplete'}</strong><span>{session.discoveryComplete ? 'In this project collection' : session.active ? 'Scanning the collection' : 'Start an export or preview the count'}</span></div></div>
       <button className="icon-button" aria-label="Refresh image collection" title="Scan images without downloading" disabled={busy || session.active} onClick={() => void command('discover')}><Icon name="refresh" /></button>
     </section>}
-    {scope === 'selected' && <><p className="hint">Select images in Flow first. Downloads include selected cards currently loaded in the page; offscreen selections may be omitted. The list is fixed when you start.</p><SelectionInspector tabId={tabId} /></>}
+    {scope === 'selected' && <><p className="hint">Select images in Flow, capture the list below, then clear selection in Flow before starting. Only currently loaded selected cards are captured; offscreen selections may be omitted.</p><button disabled={busy || session.active} onClick={() => void command('discover')}>Capture selected image list</button>{session.settings.scope === 'selected' && session.stage === 'READY' && <p className="notice">{total} selected images captured. Clear selection in Flow, then start downloading this fixed list.</p>}<SelectionInspector tabId={tabId} /></>}
     {(session.active || hasProgress) && activity}
     {session.active ? <div className="active-destination"><Icon name="folder" size={16} /><span>Saving to Downloads{session.settings.folder ? ` / ${session.settings.folder}` : ''}</span></div> : <section className="destination" aria-label="Download destination">
       <div className="field-heading"><label htmlFor="download-folder">Download folder</label><span className="field-note">Optional</span></div>

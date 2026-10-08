@@ -25,7 +25,9 @@ export class BulkAutomation {
     if (!Number.isInteger(retries) || retries < 0 || retries > 2) throw new Error('Retry count must be 0, 1, or 2.');
     // The worker validates the actual destination before arming any browser download.
     if (typeof folder !== 'string' || folder.length > 180) throw new Error('Invalid download folder.');
-    const selected = scope === 'selected' ? selectedAssets(this.doc) : undefined;
+    if (download && this.doc.querySelector('flow-tile-container.selected')) throw new Error('Capture the selected image list, then clear selection in Flow before starting downloads.');
+    const preparedSelection = download && scope === 'selected' && this.value.settings.scope === 'selected' && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
+    const selected = scope === 'selected' ? (preparedSelection ? this.value.assets.map(asset => ({ ...asset })) : selectedAssets(this.doc)) : undefined;
     const reuse = scope === 'all' && this.value.settings.scope !== 'selected' && download && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
     const assets = selected ?? (reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : []);
     this.abort = new AbortController(); this.initialUrl = this.url();
