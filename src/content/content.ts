@@ -3,6 +3,9 @@ import { controlKind, isFlowPage } from './flow-dom';
 import { CaptureHistory } from '../shared/capture-history';
 import { PROBES } from './selectors';
 import type { InspectorCommand, InspectorReply, InspectorSession } from '../shared/types';
+import { FlowDOMAdapter } from './flow-adapter';
+import { SingleImageAutomation } from './single-automation';
+import type { AutomationCommand, AutomationReply } from '../shared/automation-types';
 
 const global = globalThis as typeof globalThis & { __flowBulkInspectorInstalled?: boolean };
 if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
@@ -19,6 +22,19 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   let observationError: string | null = null;
   let latest = inspectFlow(document, location.href);
   let capture = new CaptureHistory(latest);
+  const single = new SingleImageAutomation(new FlowDOMAdapter(document), () => location.href);
+  single.refresh();
+  chrome.runtime.onMessage.addListener((message: AutomationCommand, sender, respond: (r: AutomationReply) => void) => {
+    if (message?.type !== 'FLOW_SINGLE') return;
+    // Accept only our own popup/sidepanel, never another page content script.
+    if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')) || !isFlowPage(location.href)) return;
+    try {
+      if (message.action === 'start' && typeof message.assetKey === 'string') {
+        stop(); respond({ ok: true, single: single.start(message.assetKey, message.debug === true) });
+      } else if (message.action === 'cancel') respond({ ok: true, single: single.cancel() });
+      else respond({ ok: false, error: 'Invalid single-image command.' });
+    } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : 'Single-image operation failed.' }); }
+  });
 
   const scan = (interaction?: ManualInteractionInput) => {
     latest = inspectFlow(document, location.href, interaction, preferredImage);
@@ -80,7 +96,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     document.removeEventListener('load', schedule, true);
     for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
   };
-  const session = (): InspectorSession => ({ captureProtocol: 1, buildVersion: chrome.runtime.getManifest().version, observing, debug, latest,
+  const session = (): InspectorSession => ({ single: single.session(), captureProtocol: 1, buildVersion: chrome.runtime.getManifest().version, observing, debug, latest,
     observation: { active: observing, startedAt: observationStartedAt, stoppedAt: observationStoppedAt, lastError: observationError },
     sessionId: capture.sessionId,
     history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
@@ -92,7 +108,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
       if (typeof message.debug === 'boolean') debug = message.debug;
       switch (message.action) {
         case 'get': break;
-        case 'scan': scan(); break;
+        case 'scan': scan(); single.refresh(); break;
         case 'observe':
           stop(); scan(); observing = true; observationStartedAt = new Date().toISOString(); observationStoppedAt = null;
           observer = new MutationObserver(schedule);
@@ -119,5 +135,5 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
       sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Inspector scan failed.' });
     }
   });
-  window.addEventListener('pagehide', stop, { once: true });
+  window.addEventListener('pagehide', () => { stop(); single.cancel(); }, { once: true });
 }

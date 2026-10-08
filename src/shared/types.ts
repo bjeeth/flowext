@@ -66,6 +66,7 @@ export interface ObservationState {
   lastError: string | null;
 }
 export interface InspectorSession {
+  single?: import('./automation-types').SingleSession;
   captureProtocol?: 1;
   buildVersion?: string;
   observation?: ObservationState;

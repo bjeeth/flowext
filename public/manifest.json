@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Flow Bulk Downloader \u2014 Inspector",
-  "version": "0.1.1",
+  "name": "Flow Bulk Downloader",
+  "version": "0.2.0",
   "minimum_chrome_version": "116",
-  "description": "Read-only Flow DOM inspection. Download automation is gated on verified live DOM evidence.",
+  "description": "Evidence-based single-image Flow 2K download validation and read-only DOM inspection.",
+  "optional_permissions": ["downloads"],
   "permissions": [
     "activeTab",
     "scripting",

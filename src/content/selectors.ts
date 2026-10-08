@@ -29,3 +29,17 @@ export const PROBES = {
   maxScrollRegions: 15,
   maxAncestorDepth: 7,
 } as const;
+
+/** Phase 2 contract derived solely from the supplied real 0.1.1 capture.
+ * No generated Angular classes, nth-of-type paths, or captured menu IDs are hardcoded.
+ */
+export const FLOW = {
+  image: 'flow-image-tile img[data-media-id]',
+  tile: 'flow-image-tile',
+  more: 'flow-image-hotbar button[aria-label="More options"][aria-haspopup="menu"]',
+  menu: '[role="menu"]',
+  item: 'button[role="menuitem"]',
+  downloadContext: 'flow-image-context-menu-items',
+} as const;
+
+export const TIMEOUTS = { menu: 5000, download: 120000, poll: 500 } as const;

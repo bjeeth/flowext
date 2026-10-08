@@ -1,4 +1,5 @@
-// No download permission or download handling until live Flow evidence is verified.
+import { installDownloadMonitor } from './download-monitor';
+installDownloadMonitor();
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.storage.local.get('debug').then(({ debug }) => {
     if (typeof debug !== 'boolean') return chrome.storage.local.set({ debug: false });

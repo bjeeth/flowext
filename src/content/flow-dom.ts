@@ -36,7 +36,13 @@ export function accessibleName(el: Element): string {
 export function kindForName(name: string): WorkflowControl | undefined {
   return (Object.keys(PROBES.names) as WorkflowControl[]).find(kind => PROBES.names[kind].test(name));
 }
-export function controlKind(el: Element): WorkflowControl | undefined { return kindForName(accessibleName(el)); }
+export function controlKind(el: Element): WorkflowControl | undefined {
+  const named = kindForName(accessibleName(el));
+  if (named) return named;
+  // Real 0.1.1 capture: Download's button contains an icon plus separate text spans.
+  const kinds = new Set(labelMatches(el).map(match => match.kind));
+  return kinds.size === 1 ? [...kinds][0] : undefined;
+}
 
 /** Capture only allowlisted workflow labels; arbitrary titles/prompts remain omitted. */
 export function labelMatches(el: Element): LabelMatch[] {

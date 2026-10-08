@@ -1,36 +1,36 @@
-# Findings from the supplied real Phase 1 capture
+# Findings from the supplied real Flow captures
 
-The supplied format-v2 JSON passes the offline shape/reference review. It contains baseline/scan evidence with no recorded manual interactions, no role-based menus, no Download control, and no 2K Upscaled control. It is insufficient to implement Phase 2. The original capture does not contain observer-start metadata, so it does not establish whether observation was started or why menu changes were not captured.
+The two latest uploads are byte-for-byte identical: one 12,222,591-byte format-v2 export from inspector 0.1.1, capture protocol 1. Its SHA-256 is `b4fcfd9c8fd18fa01ab804e4e41aeaac45ce4de5abbe7c7d45d16d7b6d62ca9e`. It contains 22 retained snapshots, a completed roughly 30-second observation session, no observer errors, 22 dropped rolling snapshots, and recorded hover/focus/click evidence. Raw captures remain outside Git; private asset values are omitted here.
 
-The raw capture is kept outside the checkout and is not committed. Findings below omit private identifier values.
+Unlike the earlier idle captures, this establishes the actual menu structure needed to implement a Phase 2 test. A real automated download has not yet been tested.
 
-## Observed structures
+## Evidence and selector contract
 
-- Image elements include a `data-media-id` attribute.
-- Image ancestors include `flow-image-tile`, `flow-tile-container`, and `flow-grid-tile-container` custom elements.
-- Image card contexts include `button` elements labeled `More options`, with `aria-haspopup="menu"`, `aria-expanded="false"`, and recognized `more_vert` icon text.
-- Those image-associated More controls have `state.visible=false` in the supplied snapshots. Disabled signals were false. Hidden is different from disabled.
-- A visible `More options` control also exists under a `flow-more-options-menu` component in the header. A global More-button query would therefore be ambiguous and could target the wrong menu.
-- `data-media-id` values are identifier hints; two baseline/scan snapshots do not prove stability across card rerenders, selection changes, or virtualization.
+| Operation | Actual evidence | Phase 2 behavior |
+| --- | --- | --- |
+| Identify rendered image | `img[data-media-id]` under `flow-image-tile`; ancestors also include `flow-tile-container` and `flow-grid-tile-container` | List only visible viewport images with exactly one image and one matching More button per tile. |
+| More control | `flow-image-hotbar` → `flow-hotbar-container` → `button`, `aria-label="More options"`, `aria-haspopup="menu"` | Resolve within the selected image tile, never from a global More query. |
+| Image menu ownership | Expanded More has `aria-controls` resolving to the visible `div[role="menu"]`; menu IDs are generated | Read the live ARIA relationship, never hardcode the captured ID. |
+| Image menu contents | `flow-image-context-menu-items` → `flow-media-context-menu-items` → `flow-menu-item` → `button[role="menuitem"]` | Verify image context within the linked menu. |
+| Download | Menu-item button with `aria-haspopup="menu"`; leaf spans contain icon text `download` and label `Download`; full diagnostic name was null | Match the unambiguous known descendant labels inside that owned menu. |
+| Quality submenu | A second visible `div[role="menu"]` appears after Download hover/click; no Download ARIA-controls link was captured | Require exactly one newly visible menu while the owned parent remains visible. Check a live ARIA link if one appears. |
+| 2K choice | `flow-menu-item` → `button[role="menuitem"]`, name `2K Upscaled`, enabled/not busy | Click the unique visible enabled 2K item in that submenu. |
+| Manual action | Retained snapshots include Download click and 2K hover/focus/click; menus then disappear | Implement normal existing DOM button clicks and validate their result in the real browser. |
 
-These are facts from the supplied diagnostic structure, not a complete selector/action contract. No observed structure establishes how Download is opened, how the 2K item is represented, or when a browser download completes.
+The relevant quality checkpoint is `snapshot-30`; Download click appears in `snapshot-32`; the 2K click appears in `snapshot-42`; menus are absent by `snapshot-44`. The same image/More DOM identities and media identifier persist across baseline, quality, and final retained scans. This proves short-session consistency only, not durability across reload, rerender, or virtualization.
 
-## Inspector correction
+The hotbar More control is hidden in baseline/final snapshots but visible with its menu open. Phase 2 invokes that existing rendered enabled button without changing CSS or simulating coordinates/hover. Whether Flow accepts an untrusted programmatic button click must be checked in the user browser. If it does not, obtain further real interaction evidence rather than inventing pointer sequences.
 
-The old coverage report counted only visible More controls, missing the hidden More controls already present in card context evidence. The review now separates associated, visible-associated, and hidden-associated More evidence.
+The inspector's original control-name matcher and offline coverage missed Download despite its presence in the graph, because icon-plus-label text was not an exact whole name. Both now accept a single unambiguous known kind from captured descendant labels. All Download/2K evidence coverage flags are observed after this correction. Older captures still review normally.
 
-The original broad image sample exhausted the context budget in one scan. The inspector now prioritizes manual targets, focused controls, and menu context before image candidates, and samples at most 24 images with the user's manual image context and viewport images first. It does not scroll, select a card, click a button, or claim full discovery.
+## Limits and required live validation
 
-Exported optional observation metadata records active/start/stop/error state; old format-v2 captures still validate. The UI warns when manual interactions or a visible 2K snapshot are missing. Explicit sampling-limit messages are distinguished from other context truncation warnings.
+- Sampling is truncated at 24 candidates; it does not imply missing menu nodes or a complete asset count.
+- No selected/active-image contract, full collection scroll container, virtualized discovery strategy, or durable identifier was established.
+- The supplied capture records an enabled 2K item; unavailable/processing variants still need real capture.
+- Screenshot labels on separate lines supplement the visual reference, but are not the source of DOM selectors.
+- Menu portal ownership beyond the More ARIA link remains based on the observed single-submenu transition. Multiple new menus fail closed; no global 2K fallback is used.
+- DOM menu disappearance is not download completion. Phase 2 waits for actual Chrome download metadata and requires a live success before any bulk processing.
+- Chrome Downloads API has no initiating tab ID. Source/referrer plus start-time attribution is conservative but cannot distinguish a lone unrelated Flow download in the same interval. Avoid other Flow downloads; validate the actual record/file in the browser.
 
-## Required recapture
-
-Reload the updated extension and refresh Flow. Follow README's live procedure, preferably with the side panel open so its status remains visible. Click **Start menu capture** and confirm **Observing DOM changes** before hovering the image and opening its More → Download menu. Leave 2K Upscaled visible for at least half a second. Click **Stop and copy JSON**, and review identifiers before supplying it.
-
-Include the separate manual download note from README step 7. If menu evidence remains missing, inspect the new observer/error metadata and improve capture further; do not infer absent menu selectors from this baseline.
-
-## Repeated idle exports and screenshot
-
-Subsequent supplied files still contain null observer start metadata and no menu transitions. That describes the exported snapshots; the old UI did not guarantee those snapshots represented the current page session. Copy read cached UI state, and idle panels did not poll for observation started elsewhere. Version 0.1.1 fixes that stale-export path and prevents unstarted captures from being copied through the menu-capture control. This is a verified synchronization defect, not proof of the exact cause of each user's capture.
-
-The supplied screenshot confirms the visual More → Download submenu → 2K / Upscaled workflow, with quality text on separate lines. Diagnostic name matching now accepts whitespace-separated and concatenated known `2K Upscaled` text; 4K and upgrade text remain excluded. The screenshot does not supply DOM selectors, menu roles, portal ownership, or browser download lifecycle evidence. No Phase 2 automation is implemented from it.
+Follow README's Phase 2 live single-image test. Report actual browser completion, 2K file dimensions, processing timing, and any error. No bulk automation is implemented.

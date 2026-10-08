@@ -28,7 +28,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Inspect current DOM' }).click();
+  await page.getByRole('button', { name: 'Take DOM snapshot' }).click();
   await page.getByRole('alert').filter({ hasText: 'Open https://flow.google.com/' }).waitFor();
   await page.getByRole('checkbox', { name: 'Debug console logging' }).check();
   await page.waitForFunction(async () => (await chrome.storage.local.get('debug')).debug === true);

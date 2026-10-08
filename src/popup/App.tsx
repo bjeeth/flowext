@@ -3,6 +3,7 @@ import { exportCapture } from '../shared/capture';
 import { inspectTab, liveMenuCapture } from '../shared/client';
 import type { InspectorCommand, InspectorSession } from '../shared/types';
 import './styles.css';
+import { SingleImagePanel } from './SingleImagePanel';
 
 export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [session, setSession] = useState<InspectorSession>();
@@ -104,7 +105,8 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   }
   const report = session?.latest;
   return <main>
-    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Phase 1 · DOM inspector{session?.buildVersion ? ` · ${session.buildVersion}` : ''}</p></div></header>
+    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Single-image validation & DOM inspector{session?.buildVersion ? ` · ${session.buildVersion}` : ''}</p></div></header>
+    {session?.single && tabId !== undefined && <SingleImagePanel tabId={tabId} session={session.single} debug={debug} rescan={() => void run('scan')} />}
     <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture the actual image and menu structure before enabling download automation.</p></section>
     <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
     <section className="stats" aria-label="Inspection results">
@@ -137,6 +139,6 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
       <p className="hint">Copy JSON reads the live captured tab. Clear history resets the capture and requires starting it again.</p>
       <button className="wide" disabled={busy || session.observing} onClick={() => void run('clear')}>Clear capture history</button>
     </>}
-    <footer>No clicks or downloads are automated in this build. Phase 2 requires verified live Flow evidence.</footer>
+    <footer>Single-image automation uses captured Flow DOM evidence and actual Chrome download events. Bulk processing requires a successful live single-image test. Inspector controls remain read only.</footer>
   </main>;
 }

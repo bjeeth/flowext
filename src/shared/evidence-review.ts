@@ -150,7 +150,10 @@ export function reviewEvidence(input: unknown): EvidenceReview {
     c.visibleMoreAssociatedWithCandidate ||= associatedMore.some(n => n.state.visible);
     c.hiddenMoreAssociatedWithCandidate ||= associatedMore.some(n => !n.state.visible);
     const menuControls = new Set(report.menuContexts.flatMap(m => m.controlNodeIds));
-    c.downloadInMenu ||= report.controls.some(n => n.kind === 'download' && menuControls.has(n.nodeId));
+    c.downloadInMenu ||= [...menuControls].some(id => {
+      const n = report.nodes[id];
+      return n?.state.visible && n.labelMatches.some(m => m.kind === 'download');
+    });
     c.qualityInMenu ||= report.controls.some(n => n.kind === '2k' && menuControls.has(n.nodeId));
     c.explicitMenuLinks ||= Object.values(report.nodes).some(n => n.references.some(r => ['aria-controls', 'aria-owns'].includes(r.attribute) && r.resolved && r.targetNodeId !== null && report.menus.some(m => m.nodeId === r.targetNodeId)));
     c.identifierHints ||= report.candidates.some(a => Object.keys(a.identifierHints).length > 0 || ancestorIdentifierHint(a.media.nodeId, report));

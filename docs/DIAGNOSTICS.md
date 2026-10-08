@@ -1,6 +1,6 @@
 # Real Flow evidence handoff
 
-Run the exact seven-step **Phase 1 live inspection procedure** in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Use **Start menu capture** before opening menus, then **Stop and copy JSON** afterward. No automatic click, network call, or download monitoring occurs.
+Run the exact seven-step **Phase 1 live inspection procedure** in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Use **Start menu capture** before opening menus, then **Stop and copy JSON** afterward. These inspector actions perform no automatic click, network call, or download monitoring. The separate Phase 2 button is an explicit download operation.
 
 Reload the extension AND the Flow page after installing this updated build. Older injected content scripts remain alive until the page reloads. This build emits `formatVersion: 2` and `schemaVersion: 2`; legacy v1 reports are not padded with inferred evidence.
 
@@ -53,10 +53,10 @@ Version 0.1.1 fetches live bound-tab state before copying, synchronizes idle pop
 
 The optional `observation` metadata records whether the observer is active, start/stop times, and its last scan error. Old v2 captures without it remain accepted, with an explicit warning. More coverage distinguishes visible and hidden card-associated controls.
 
-Exit 0 means **the capture format is valid**, not that all evidence exists or Phase 2 is verified. Coverage may correctly report missing evidence. Exit 1 means malformed/legacy/non-Flow input, broken required references, or another input error. The supplied real v2 capture validated successfully, but lacks Download/2K and manual-interaction evidence; see [observed findings](OBSERVED-DOM.md). Format validation does not satisfy the Phase 2 gate.
+Exit 0 means **the capture format is valid**, not that all evidence exists or Phase 2 is verified. Coverage may correctly report missing evidence. Exit 1 means malformed/legacy/non-Flow input, broken required references, or another input error. The latest supplied real v2 capture validates and contains Download/2K and manual-interaction evidence; see [observed findings](OBSERVED-DOM.md). Format validation alone does not establish live automation success.
 
-Keep the manual 2K download result from README step 7 separate: whether processing occurred, approximate delay, final filename/format, browser success/failure, and visible UI state. Do not supply signed URLs or credentials. The inspector cannot confirm browser download completion because it does not request the downloads permission.
+Keep the manual 2K download result from README step 7 separate: whether processing occurred, approximate delay, final filename/format, browser success/failure, and visible UI state. Do not supply signed URLs or credentials. The read-only inspector export cannot confirm browser completion. The separate Phase 2 action requests optional Downloads access and reports actual browser lifecycle state.
 
 ## Phase 2 gate
 
-Only actual supplied evidence may establish selectors and menu interaction semantics. If any required action or relationship remains ambiguous, improve the inspector or request a focused recapture. Do not fill gaps with private APIs, sample Flow DOM, assumed classes, coordinates, or simulated progress. Phase 2 will require one real image to complete its actual browser download before bulk work starts. No Phase 2 implementation is included in this change.
+Only actual supplied evidence may establish selectors and menu interaction semantics. If any required action or relationship remains ambiguous, improve the inspector or request a focused recapture. Do not fill gaps with private APIs, sample Flow DOM, assumed classes, coordinates, or simulated progress. Phase 2 will require one real image to complete its actual browser download before bulk work starts. Version 0.2.0 implements only a single-image action using the supplied evidence. Follow README's live test before proceeding to bulk.
