@@ -8,9 +8,11 @@ export type BulkStage = 'IDLE' | 'DISCOVERING' | 'READY' | 'RUNNING' | 'PAUSED' 
 export interface BulkSession {
   folderSupport?: 1;
   selectionCaptureSupport?: 1;
+  discoverySupport?: 2;
   protocol: 1; stage: BulkStage; assets: FlowAsset[]; currentId?: string; currentStage?: SingleStage;
   pauseRequested: boolean; active: boolean; discoveryComplete: boolean;
   startedAt?: string; endedAt?: string; error?: string;
+  discovery?: import('./discovery-policy').DiscoveryDiagnostics;
   settings: { retries: number; debug: boolean; folder?: string; scope?: import('./selection-types').DownloadScope };
 }
 export interface BulkCommand {

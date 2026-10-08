@@ -60,3 +60,7 @@ Keep the manual 2K download result from README step 7 separate: whether processi
 ## Phase 2 gate
 
 Only actual supplied evidence may establish selectors and menu interaction semantics. If any required action or relationship remains ambiguous, improve the inspector or request a focused recapture. Do not fill gaps with private APIs, sample Flow DOM, assumed classes, coordinates, or simulated progress. Live acceptance starts by verifying one real image and actual browser completion, then wider collections. Version 0.3.0 implements automatic bulk processing at the user’s request. DOM contracts are evidenced; authenticated single-image/bulk success remains unverified. Follow README’s live bulk procedure and verify the first actual file.
+
+### 0.5.2 discovery failure capture
+
+The failure-side **Copy discovery diagnostics** button takes a fresh read-only snapshot without starting menu observation. Its format-v2 export adds optional count-only `discovery.initial`, `discovery.latest`, and `discovery.scans` metadata. Snapshot node descriptions also include optional bounded `classes` (24 values, 80 characters each) and `classesTruncated`; older captures remain valid. This records actual structural state for review, not a selected-image selector or inferred selection count. Review identifiers and classes before sharing. Ordinary Copy bulk result includes only count diagnostics and continues to omit DOM/media identifiers and classes.

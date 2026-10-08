@@ -1,4 +1,4 @@
-import { FlowDOMAdapter } from './flow-adapter';
+import { FlowDOMAdapter, FlowControlsUnavailable } from './flow-adapter';
 import { discoverAssets, reacquireAsset, delay } from './asset-discovery';
 import { DownloadFailure, downloadImage } from './image-download';
 import { DISCOVERY } from './selectors';
@@ -8,11 +8,11 @@ import { sequentialQueue } from './sequential-queue';
 import type { DownloadScope } from '../shared/selection-types';
 
 export class BulkAutomation {
-  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
+  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
   private abort?: AbortController;
   private initialUrl = '';
   constructor(private doc: Document, private adapter: FlowDOMAdapter, private url: () => string) {}
-  session(): BulkSession { return { ...this.value, settings: { ...this.value.settings }, assets: this.value.assets.map(asset => ({ ...asset, ...(asset.download ? { download: { ...asset.download } } : {}) })) }; }
+  session(): BulkSession { return structuredClone(this.value); }
   start(download: boolean, retries: number, debug: boolean, folder = '', scope: DownloadScope = 'all'): BulkSession {
     if (scope !== 'all' && scope !== 'selected') throw new Error('Choose All images or Selected images.');
     if (scope === 'selected') throw new Error('Selected-image downloads require verified Flow multi-selection evidence. Capture selection DOM first; no downloads were started.');
@@ -27,7 +27,7 @@ export class BulkAutomation {
     const reuse = download && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
     const assets = reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : [];
     this.abort = new AbortController(); this.initialUrl = this.url();
-    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, stage: reuse ? 'RUNNING' : 'DISCOVERING', assets, active: true, pauseRequested: false, discoveryComplete: reuse,
+    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, discoverySupport: 2, stage: reuse ? 'RUNNING' : 'DISCOVERING', assets, active: true, pauseRequested: false, discoveryComplete: reuse,
       startedAt: new Date().toISOString(), settings: { retries, debug, scope: 'all', ...(download ? { folder } : {}) } };
     if (reuse) void this.process(this.abort.signal).catch(error => this.fail(error, this.abort!.signal)).finally(() => this.finish());
     else void this.run(download, this.abort.signal);
@@ -61,9 +61,14 @@ export class BulkAutomation {
   }
   private async run(download: boolean, signal: AbortSignal) {
     try {
-      this.value.assets = await discoverAssets(this.doc, signal, assets => { this.value.assets = assets; }, () => this.checkpoint(signal));
-      this.value.discoveryComplete = true; this.checkPage();
-      if (!this.value.assets.length) throw new Error('No generated image cards were found in this Flow project collection.');
+      this.value.assets = await discoverAssets(this.doc, signal, assets => { this.value.assets = assets; }, () => this.checkpoint(signal), snapshot => {
+        if (!this.value.discovery) this.value.discovery = { initial: snapshot, latest: snapshot, scans: 1 };
+        else { this.value.discovery.latest = snapshot; this.value.discovery.scans++; }
+        if (this.value.settings.debug) console.info('[FLOW-BULK][DISCOVERY]', snapshot);
+      });
+      this.checkPage();
+      if (!this.value.assets.length) throw new Error('No supported generated image cards were found. Copy discovery diagnostics to check image IDs, card ancestry, visibility, and the collection selector. No downloads were started.');
+      this.value.discoveryComplete = true;
       if (!download) { this.value.stage = 'READY'; return; }
       for (const asset of this.value.assets) asset.status = 'queued';
       await this.process(signal);
@@ -76,7 +81,7 @@ export class BulkAutomation {
     await sequentialQueue(pending, this.value.settings.retries, signal, () => this.checkpoint(signal),
       (asset, attempt) => this.processAsset(asset, attempt, signal),
       (asset, error) => { asset.status = 'failed'; asset.error = error instanceof Error ? error.message : 'Image operation failed.'; },
-      error => !(error instanceof DownloadFailure && !error.retrySafe) && this.url() === this.initialUrl,
+      error => !(error instanceof FlowControlsUnavailable) && !(error instanceof DownloadFailure && !error.retrySafe) && this.url() === this.initialUrl,
       () => delay(DISCOVERY.settle, signal));
     this.value.stage = 'COMPLETED'; this.value.currentId = undefined; this.value.currentStage = undefined;
   }

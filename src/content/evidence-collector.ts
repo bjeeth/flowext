@@ -15,7 +15,7 @@ export class EvidenceCollector {
     this.recorded.set(el, evidence);
     if (this.count < PROBES.maxNodes) { this.nodes[evidence.nodeId] = evidence; this.count++; }
     else this.truncated = true;
-    if (evidence.attributesTruncated || evidence.referencesTruncated) this.truncated = true;
+    if (evidence.attributesTruncated || evidence.referencesTruncated || evidence.classesTruncated) this.truncated = true;
     return evidence;
   }
   capture(el: Element): ElementEvidence {

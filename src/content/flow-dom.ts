@@ -84,6 +84,7 @@ export function structuralPath(el: Element): string {
 }
 
 export function describe(el: Element): ElementEvidence {
+  const classes = Array.from(el.classList);
   const ancestors: Element[] = [];
   for (let p: Element | null = el; p; p = p.parentElement) ancestors.push(p);
   const nativeDisabled = el.matches(':disabled');
@@ -109,6 +110,8 @@ export function describe(el: Element): ElementEvidence {
     name: kindForName(name) ? name : null, labelMatches: mayLabel ? labelMatches(el) : [],
     attributes: attributes(el, names), attributeNames: el.getAttributeNames().filter(name => name !== 'value' && !/^on/i.test(name)).slice(0, 60),
     attributesTruncated: el.getAttributeNames().length > 60 || names.some(name => (el.getAttribute(name)?.length ?? 0) > PROBES.maxAttributeLength),
+    classes: classes.slice(0, 24).map(value => value.slice(0, 80)),
+    classesTruncated: classes.length > 24 || classes.some(value => value.length > 80),
     referencesTruncated, references,
     state: { visible: isVisible(el), disabled: nativeDisabled || ariaDisabled || inert, nativeDisabled, ariaDisabled, inert, busy: ancestors.some(p => p.getAttribute('aria-busy') === 'true') },
   };

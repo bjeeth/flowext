@@ -1,6 +1,10 @@
 import { controlKind, describe, isVisible, nodeId } from './flow-dom';
 import { FLOW, TIMEOUTS } from './selectors';
 import type { SingleAsset } from '../shared/automation-types';
+import { renderedImages } from './image-cards';
+
+/** A page-wide absence of image controls is a prerequisite failure, not a failed download. */
+export class FlowControlsUnavailable extends Error {}
 
 export async function boundedWait<T>(find: () => T | undefined, timeout: number, signal: AbortSignal, error: string): Promise<T> {
   const end = Date.now() + timeout;
@@ -27,7 +31,7 @@ export class FlowDOMAdapter {
   constructor(private doc: Document) {}
   detectAssets(): SingleAsset[] {
     const view = this.doc.defaultView;
-    const images = Array.from(this.doc.querySelectorAll<HTMLImageElement>(FLOW.image)).filter(image => {
+    const images = renderedImages(this.doc.documentElement).filter(image => {
       const r = image.getBoundingClientRect();
       return isVisible(image) && r.bottom > 0 && r.right > 0 && r.top < (view?.innerHeight ?? 0) && r.left < (view?.innerWidth ?? 0);
     });
@@ -36,7 +40,7 @@ export class FlowDOMAdapter {
     for (const image of images) {
       const tile = image.closest(FLOW.tile);
       const mediaId = image.getAttribute('data-media-id');
-      if (!tile || tile.querySelectorAll(FLOW.image).length !== 1 || !mediaId || tile.querySelectorAll(FLOW.more).length !== 1) continue;
+      if (!tile || !mediaId) continue;
       const key = nodeId(image);
       this.choices.set(key, { image, mediaId });
       result.push({ key, label: `Image ${result.length + 1}`, loaded: image.complete && image.naturalWidth > 0 });
@@ -64,10 +68,20 @@ export class FlowDOMAdapter {
     if (this.visibleMenus().length) throw new Error('Close the existing Flow menus before testing one image.');
     const image = this.image(key);
     if (!image.complete || image.naturalWidth === 0) throw new Error('Image is still loading. Wait and rescan.');
-    const tile = image.closest(FLOW.tile)!;
-    const buttons = Array.from(tile.querySelectorAll<HTMLElement>(FLOW.more));
-    if (buttons.length !== 1 || controlKind(buttons[0]) !== 'more') throw new Error('Could not uniquely identify this image’s More menu. Flow UI changed.');
-    const more = buttons[0];
+    let more: HTMLElement;
+    try {
+      more = await boundedWait(() => {
+        const current = this.image(key);
+        const buttons = Array.from(current.closest(FLOW.tile)!.querySelectorAll<HTMLElement>(FLOW.more));
+        if (buttons.length > 1) throw new Error('Multiple More controls belong to this image. Refusing an ambiguous action.');
+        if (buttons.length === 1 && controlKind(buttons[0]) === 'more') return buttons[0];
+      }, TIMEOUTS.menu, signal, 'This image’s More options control is not rendered. Flow UI changed or image actions are unavailable in the current mode.');
+    } catch (error) {
+      signal.throwIfAborted();
+      const scope = image.closest(FLOW.collection) ?? this.doc;
+      if (!scope.querySelector(FLOW.more)) throw new FlowControlsUnavailable('Images were found, but Flow is not rendering any image More options controls in this collection. Return to the normal image grid and leave selection mode if active, then retry. Copy discovery diagnostics if the controls remain absent. No download was started for this image.');
+      throw error;
+    }
     // The captured hotbar is hidden until hover. Invoke its existing enabled DOM button;
     // do not change page styles, simulate coordinates, or synthesize hover sequences.
     this.enabled(more, false); signal.throwIfAborted(); more.click();

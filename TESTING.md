@@ -1,5 +1,7 @@
 # Validation and live acceptance checklist
 
+Current 0.5.2: the supplied real 0.5.1 diagnostic capture reproduces the previous discovery rejection: the baseline has 24 sampled image identities with More controls; the two later snapshots have 18 supported image identities and zero associated More controls. The updated identity policy retains all 18 sampled images independently of menu availability. No fabricated Flow DOM/assets or actual downloads were used in this regression check. Live full-project discovery and menu/download acceptance remain pending.
+
 Current 0.5.1 results: dependency installation, TypeScript/production build, and 102 local tests passed. The actual built UI also passed Chromium layout checks with empty API transport metadata at 320/400px popup and 540px side-panel widths. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, selected-image, or folder-creation success is claimed. Selected downloads remain blocked without actual multi-selection evidence. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional extension-install smoke testing; policy is unchanged.
 
 ## Local checks
@@ -98,3 +100,16 @@ The refreshed actual UI was rendered in Chromium over localhost with empty Chrom
 Existing transport tests still verify permission handling, folder persistence/invalid destinations, bound-tab synchronization, selection capture, and all/selected isolation. New presentation tests ensure failed/skipped exports do not appear fully successful, a pending pause cannot hide an error, elapsed time uses actual timestamps and freezes on completion, and invalid byte/time data is not presented as a real measurement.
 
 Live acceptance remains pending: actual download progress/completion/error summaries, pause/resume/cancel, the native Open Downloads folder action, popup/side-panel behavior inside Chrome/Edge, keyboard navigation at browser zoom, and real selected-image evidence. The optional extension smoke test now opens Developer tools before toggling the persisted Debug logging switch.
+
+## Version 0.5.2 discovery regression
+
+Run `npm run inspect:discovery -- /path/to/real-flow-capture.json --expect-unmounted-controls` against the supplied 0.5.1 capture. The script validates the actual format-v2 input and walks its existing captured ancestry/labels only; it never reconstructs HTML or logs identifiers. Expected sample counts: 24 identities / 24 associated More controls, then 18 / 0 twice. These are sampled identities, not a server-authoritative count or full live tile validation.
+
+Additional tests use the actual empty non-Flow document and extension UI with empty transport metadata: count-only discovery diagnostics do not change the DOM or include media IDs/URLs; a zero-image discovery failure has no completed progress bar; Copy discovery diagnostics obtains a fresh read-only scan without requesting Downloads; and older injected discovery engines cannot dispatch a new Start. The existing panel synchronization test also verifies the new engine capability is required after extension updates.
+
+- [ ] Load 0.5.2 dist, reload the extension, refresh Flow, and confirm the version/absence of an old-script warning.
+- [ ] All images → Refresh image collection: actual generated cards are counted even when their More controls are unmounted. Confirm restoration of the starting scroll position and exclusion of ingredient/folder thumbnails.
+- [ ] With image actions available, validate one actual 2K download before increasing project size.
+- [ ] With every image More control absent, verify the first operation stops after the bounded menu wait with a specific prerequisite error rather than repeatedly failing every image. No click/download should be attempted for that image.
+- [ ] On discovery/action failure, click Copy discovery diagnostics and review current real card/hotbar/scroll ancestry plus count-only initial/latest scan statistics.
+- [ ] Selected-image downloading remains blocked pending baseline/selected/deselected real selection evidence; this release does not enable it.

@@ -1,6 +1,6 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.5.1** refreshes the dark popup and side panel with clear export modes, grouped settings, inline folder validation, and focused progress/results. **Selected-image downloading is blocked pending real selection DOM evidence.**
+Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.5.2** fixes image discovery discarding valid cards when Flow unmounts their More controls. It also adds count-only scan diagnostics and a one-click real DOM capture for failures. **Selected-image downloading is blocked pending real selection DOM evidence.**
 
 Bulk automation is implemented and builds locally. **Authenticated Flow download/discovery behavior has not yet been verified end-to-end.** Local tests and DOM captures do not establish production readiness.
 
@@ -19,10 +19,10 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 
 ## Install and use in Chrome/Edge
 
-1. Build from source or extract the **0.5.1 ZIP**.
+1. Build from source or extract the **0.5.2 ZIP**.
 2. Open `chrome://extensions` or `edge://extensions`, enable **Developer mode**, and choose **Load unpacked**.
 3. Select **dist/** containing `manifest.json` (`flow-bulk-downloader/dist` inside the ZIP). When updating, reload the extension and **refresh the Flow page** to replace the old injected script.
-4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.5.1**.
+4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.5.2**.
 5. Use the top-right **Open download side panel** icon and choose **All images**. To preview the image count, click the refresh icon (**Refresh image collection**) and wait for the ready status. Start also discovers the collection automatically if it has not been scanned. Discovery restores the original scroll position.
 6. In **Download folder**, choose a recent folder or enter a name such as `Flow Exports/Project 1`. Leave blank for the browser's configured Downloads folder. Click **Download All as 2K** once and accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
 7. Keep this project tab open and avoid interacting with its menus/scroll area or starting other Flow downloads. Closing the panel does not stop the queue.
@@ -36,7 +36,7 @@ Minimum Chrome/Edge version: 116. Redirects to other hostnames are refused. Brow
 
 The existing captures contain no `aria-selected`, `aria-checked`, `aria-pressed`, or selected-state candidate signals. They were recorded for menus and scrolling, without a multi-selection procedure. No Flow multi-selection selector has been invented. **Selected images is a separate mode, but Download Selected as 2K remains disabled.** The engine also rejects selected-scope starts before discovery/downloads; it never falls back to exporting all images.
 
-To provide the missing evidence, load 0.5.1 and refresh Flow. Use the side panel so the same cards remain visible:
+To provide the missing evidence, load 0.5.2 and refresh Flow. Use the side panel so the same cards remain visible:
 
 1. Choose **Selected images**, then expand **Help enable selected downloads**. Finish/cancel any running queue first.
 2. Deselect all images **in Flow**, then click **Capture baseline**.
@@ -75,6 +75,8 @@ Locally, use your checkout directory and plain `npm ci` with a writable cache. E
 `npm run test:browser` is an optional non-Flow Chromium extension smoke test (`CHROMIUM_PATH` overrides `/usr/bin/chromium`). Cloud managed `ExtensionInstallBlocklist=["*"]` blocks it. Leave managed policy unchanged; no cloud browser success is claimed.
 
 ## Discovery
+
+Image identity does not require a More button. The supplied 0.5.1 capture has 18 sampled generated image cards whose hotbars were completely unmounted; the previous discovery filter incorrectly discarded them. The updated scanner retains these identities and checks menu availability separately at action time. If no image More controls appear within the bounded menu wait, the queue stops with an actionable prerequisite error instead of failing every image or guessing an action. This does not establish why Flow removed the controls.
 
 Real captures establish `flow-image-tile img[data-media-id]` and a project scroll element under `flow-project-page` with `cdkvirtualscrollingelement`. Folder/collection thumbnails use `flow-collection-tile` and are excluded.
 
@@ -151,11 +153,21 @@ npm run inspect:evidence -- /path/to/real-flow-capture.json
 
 The offline validator reads untrusted JSON without executing selectors/HTML or echoing identifiers. Valid format does not establish actual download success. Do not share signed URLs, tokens, prompts, or image data.
 
+For the supplied missing-hotbar regression, run:
+
+```sh
+npm run inspect:discovery -- /path/to/real-flow-capture.json --expect-unmounted-controls
+```
+
+This checks captured candidate metadata against the image identity policy without constructing mock Flow DOM or exposing identifiers. The capture is a bounded sample, so this is neither the full project count nor a live selector/download test.
+
 Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real evidence. Keep raw selectors out of queue code. Build/test and rerun an actual Flow project; do not invent Angular classes, coordinates, APIs, or fake Flow DOM.
 
 ## Troubleshooting
 
-- **Old inspector/chooser or missing scope controls:** load 0.5.1 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
+- **Zero images / missing More controls in 0.5.1:** update to 0.5.2 and refresh Flow. Use All images → Refresh image collection. Image count now ignores whether the More control is mounted. If Flow still exposes no image actions, return to the ordinary project grid and leave selection mode if active; retry once. The panel reports the actual absence of controls. **Copy discovery diagnostics** captures current real DOM evidence plus count-only scan statistics without starting observation, requesting Downloads access, scrolling, or downloading. Review private identifiers and CSS classes before sharing. Zero-result scans remain incomplete.
+
+- **Old inspector/chooser or missing scope controls:** load 0.5.2 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
 - **Selected download unavailable:** provide the multi-selection capture above. The earlier menu/scroll JSON does not establish selection semantics.
 - **File outside chosen folder:** check browser save-location prompts and other extensions that rename downloads. The queue stops instead of claiming that folder export succeeded. Check the actual file before retrying.
 - **Collection not found/ambiguous:** open an image project on exact Flow and capture scroll ancestry; do not guess a body/window scroller.
@@ -168,4 +180,4 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Validation status
 
-TypeScript, production build, dependency installation, and **102 local tests** pass. Tests verify queue/API/extension-UI transport behavior, scope isolation/refusal, read-only selection transport, folder validation/routing, and final-path checks, not live Flow selection semantics, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
+TypeScript, production build, dependency installation, and **105 local tests** pass. Tests verify queue/API/extension-UI transport behavior, scope isolation/refusal, read-only selection transport, folder validation/routing, and final-path checks, not live Flow selection semantics, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.

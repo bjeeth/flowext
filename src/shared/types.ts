@@ -16,6 +16,8 @@ export interface ElementEvidence {
   attributes: Record<string, string>;
   attributeNames: string[];
   attributesTruncated: boolean;
+  classes?: string[];
+  classesTruncated?: boolean;
   referencesTruncated: boolean;
   references: Array<{ attribute: string; targetId: string; targetNodeId: string | null; resolved: boolean }>;
   state: { visible: boolean; disabled: boolean; nativeDisabled: boolean; ariaDisabled: boolean; inert: boolean; busy: boolean };

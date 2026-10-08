@@ -12,7 +12,7 @@ it.each([
 ])('folder choice $choice requests access and starts only when valid and allowed: $allowed', async ({ allowed, choice }) => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   // Empty error metadata represents a failed discovery transport, not fake Flow assets.
-  const state: BulkSession = { protocol: 1, folderSupport: 1, stage: 'ERROR', assets: [], active: false, pauseRequested: false,
+  const state: BulkSession = { protocol: 1, folderSupport: 1, discoverySupport: 2, stage: 'ERROR', assets: [], active: false, pauseRequested: false,
     discoveryComplete: false, settings: { retries: 2, debug: false } };
   const request = vi.fn(async () => allowed);
   const sendMessage = vi.fn(async (_id: number, message: { type: string }) => message.type === 'FLOW_INSPECTOR'

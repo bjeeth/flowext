@@ -1,7 +1,10 @@
-import { FLOW, DISCOVERY } from './selectors';
+import { FLOW, DISCOVERY, PROBES } from './selectors';
 import { isVisible } from './flow-dom';
 import { boundedWait } from './flow-adapter';
 import type { FlowAsset } from '../shared/bulk-types';
+import type { DiscoverySnapshot } from '../shared/discovery-policy';
+import { imageCardRejection, renderedImages } from './image-cards';
+export { renderedImages } from './image-cards';
 
 export async function delay(ms: number, signal: AbortSignal) {
   const wake = Date.now() + ms;
@@ -14,12 +17,23 @@ export function collection(doc: Document): HTMLElement {
   if (candidates.length !== 1) throw new Error('Could not uniquely identify the Flow project asset collection. Open a project or capture its changed DOM.');
   return candidates[0];
 }
-export function renderedImages(root: HTMLElement): HTMLImageElement[] {
-  return Array.from(root.querySelectorAll<HTMLImageElement>(FLOW.image)).filter(image => {
-    const tile = image.closest(FLOW.tile);
-    return !!image.getAttribute('data-media-id') && !!tile && tile.querySelectorAll(FLOW.image).length === 1 &&
-      tile.querySelectorAll(FLOW.more).length === 1 && isVisible(image);
-  });
+export function discoverySnapshot(root: HTMLElement): DiscoverySnapshot {
+  const images = Array.from(root.querySelectorAll<HTMLImageElement>(FLOW.image));
+  const rejections: DiscoverySnapshot['rejections'] = { missingId: 0, missingTile: 0, ambiguousTile: 0, hidden: 0 };
+  let acceptedImages = 0, imagesWithoutMore = 0, imagesWithAmbiguousMore = 0;
+  for (const image of images) {
+    const reason = imageCardRejection(image);
+    if (reason) { rejections[reason]++; continue; }
+    acceptedImages++;
+    const count = image.closest(FLOW.tile)!.querySelectorAll(FLOW.more).length;
+    if (!count) imagesWithoutMore++;
+    if (count > 1) imagesWithAmbiguousMore++;
+  }
+  return { capturedAt: new Date().toISOString(), pageImages: root.ownerDocument.querySelectorAll(PROBES.images).length,
+    pageMatchingImages: root.ownerDocument.querySelectorAll(FLOW.image).length,
+    collectionRegions: root.ownerDocument.querySelectorAll(FLOW.collection).length,
+    collectionImages: images.length, acceptedImages, imagesWithoutMore, imagesWithAmbiguousMore, rejections,
+    scrollTop: root.scrollTop, scrollHeight: root.scrollHeight, clientHeight: root.clientHeight };
 }
 /** Record IDs from observed image cards, never decorative/collection thumbnails or DOM indexes. */
 export function scanCollection(root: HTMLElement, assets: Map<string, FlowAsset>) {
@@ -31,10 +45,11 @@ export function scanCollection(root: HTMLElement, assets: Map<string, FlowAsset>
     else assets.set(id, { id, index: assets.size + 1, label: `Image ${assets.size + 1}`, status: 'discovered', attempts: 0, scrollTop: top });
   }
 }
-export async function discoverAssets(doc: Document, signal: AbortSignal, progress: (assets: FlowAsset[]) => void, checkpoint: () => Promise<void>) {
+export async function discoverAssets(doc: Document, signal: AbortSignal, progress: (assets: FlowAsset[]) => void, checkpoint: () => Promise<void>, diagnose: (snapshot: DiscoverySnapshot) => void = () => {}) {
   const root = collection(doc); const originalTop = root.scrollTop;
   const assets = new Map<string, FlowAsset>(); let deadline = Date.now() + DISCOVERY.timeout;
   let stable = 0;
+  diagnose(discoverySnapshot(root));
   root.scrollTop = 0;
   try {
     for (let step = 0; step < DISCOVERY.maxSteps && Date.now() < deadline; step++) {
@@ -42,12 +57,12 @@ export async function discoverAssets(doc: Document, signal: AbortSignal, progres
       if (!root.isConnected || collection(doc) !== root) throw new Error('Flow asset collection changed during discovery.');
       await delay(DISCOVERY.settle, signal);
       const before = assets.size; const height = root.scrollHeight;
-      scanCollection(root, assets); progress([...assets.values()].map(asset => ({ ...asset })));
+      scanCollection(root, assets); diagnose(discoverySnapshot(root)); progress([...assets.values()].map(asset => ({ ...asset })));
       if (assets.size > DISCOVERY.maxAssets) throw new Error('Discovery asset limit reached. No partial collection was started.');
       const atEnd = root.scrollTop + root.clientHeight >= height - 3;
       if (atEnd) {
         await delay(DISCOVERY.bottomWait, signal);
-        scanCollection(root, assets); progress([...assets.values()].map(asset => ({ ...asset })));
+        scanCollection(root, assets); diagnose(discoverySnapshot(root)); progress([...assets.values()].map(asset => ({ ...asset })));
         const unchanged = assets.size === before && root.scrollHeight === height && root.scrollTop + root.clientHeight >= root.scrollHeight - 3;
         stable = unchanged ? stable + 1 : 0;
         if (stable >= DISCOVERY.stableRounds) return [...assets.values()];

@@ -20,7 +20,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const buildVersion = chrome.runtime.getManifest().version;
   const mounted = useRef(true);
   const commandVersion = useRef(0);
-  const hasBulk = session?.bulk?.protocol === 1 && session.bulk.folderSupport === 1 && session.bulk.selectionCaptureSupport === 1;
+  const hasBulk = session?.bulk?.protocol === 1 && session.bulk.folderSupport === 1 && session.bulk.selectionCaptureSupport === 1 && session.bulk.discoverySupport === 2;
   useEffect(() => {
     mounted.current = true;
     void chrome.windows.getCurrent().then(window => { if (mounted.current) setWindowId(window.id); })

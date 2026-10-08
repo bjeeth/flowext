@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { bulkCommand } from '../shared/automation-client';
 import { inspectTab } from '../shared/client';
+import { exportCapture } from '../shared/capture';
 import type { BulkCommand, BulkSession } from '../shared/bulk-types';
 import { normalizeDownloadFolder } from '../shared/download-folder';
 import type { DownloadScope } from '../shared/selection-types';
@@ -24,7 +25,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
   const total = session.assets.length; const done = completed + failed + skipped;
   const status = exportStatus(session.stage, failed, skipped, session.pauseRequested);
   const elapsed = elapsedTime(session.startedAt, session.endedAt);
-  const hasProgress = session.discoveryComplete && !['IDLE', 'READY', 'DISCOVERING'].includes(session.stage);
+  const hasProgress = session.discoveryComplete && total > 0 && !['IDLE', 'READY', 'DISCOVERING'].includes(session.stage);
   let folderError = '';
   try { normalizeDownloadFolder(folder); } catch (e) { folderError = e instanceof Error ? e.message : 'Invalid folder name.'; }
   useEffect(() => { if (session.active) setScope(session.settings.scope ?? 'all'); }, [session.active, session.settings.scope]);
@@ -75,13 +76,26 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       if (!value) throw new Error('Refresh Flow to reconnect the bulk downloader.');
       const text = JSON.stringify({ formatVersion: 1, phase: 'bulk', buildVersion, contentVersion: current.session.buildVersion,
         stage: value.stage, discoveryComplete: value.discoveryComplete, total: value.assets.length, startedAt: value.startedAt,
-        endedAt: value.endedAt, error: value.error, currentStage: value.currentStage,
+        endedAt: value.endedAt, error: value.error, currentStage: value.currentStage, discovery: value.discovery,
         assets: value.assets.map(asset => ({ index: asset.index, status: asset.status, attempts: asset.attempts, error: asset.error,
           download: asset.download ? { ...asset.download, filename: asset.download.filename.split(/[\\/]/).pop() } : undefined })) }, null, 2);
       setReport(text);
       try { await navigator.clipboard.writeText(text); setNotice('Bulk result copied. Media IDs and URLs are omitted.'); }
       catch { setNotice('Select and copy the result below.'); }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not read the bulk result.'); }
+    finally { setBusy(false); }
+  }
+  async function copyDiscoveryDiagnostics() {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const { session: current } = await inspectTab('scan', debug, tabId);
+      if (current.bulk?.active) throw new Error('Finish or cancel the export before capturing diagnostics.');
+      const text = JSON.stringify({ ...exportCapture(current), discovery: current.bulk?.discovery,
+        diagnosticPurpose: 'Image identity and missing action controls; not proof of a successful download.' }, null, 2);
+      setReport(text);
+      try { await navigator.clipboard.writeText(text); setNotice('Discovery diagnostics copied. Review private media identifiers and classes before sharing.'); }
+      catch { setNotice('Select and copy the discovery diagnostics below. They may contain private media identifiers and classes.'); }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not capture discovery diagnostics.'); }
     finally { setBusy(false); }
   }
   const activity = scope === 'all' && session.stage !== 'IDLE' ? <section className={`activity-card tone-${status.tone}`} aria-label="Export progress">
@@ -124,6 +138,10 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
     </details>}
     {!session.active && !hasProgress && activity}
     {(error || (scope === 'all' && session.error)) && <p className="error" role="alert">{error || session.error}</p>}
+    {scope === 'all' && session.stage === 'ERROR' && !session.active && <div className="discovery-help">
+      {session.discovery && <p className="hint">Latest scan: {session.discovery.latest.collectionImages} matching image elements, {session.discovery.latest.acceptedImages} supported cards, {session.discovery.latest.imagesWithoutMore} without More controls. These are rendered counts, not the full project total.</p>}
+      <button className="wide" disabled={busy} onClick={() => void copyDiscoveryDiagnostics()}><Icon name="report" size={16} />Copy discovery diagnostics</button>
+    </div>}
     {scope === 'all' && failed > 0 && <details className="failed-list"><summary>Failed images · {failed}</summary>{session.assets.filter(asset => asset.status === 'failed').map(asset => <div className="failed-item" key={asset.id}><strong>{asset.label}</strong><p>{asset.error}</p><small>{asset.attempts} attempts</small></div>)}</details>}
     <div className="export-actions" data-active={session.active}>
       {session.active ? <div className="queue-controls">

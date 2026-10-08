@@ -8,7 +8,7 @@ Unlike the earlier idle captures, this establishes the actual menu structure nee
 
 | Operation | Actual evidence | Phase 2 behavior |
 | --- | --- | --- |
-| Identify rendered image | `img[data-media-id]` under `flow-image-tile`; ancestors also include `flow-tile-container` and `flow-grid-tile-container` | List only visible viewport images with exactly one image and one matching More button per tile. |
+| Identify rendered image | `img[data-media-id]` under `flow-image-tile`; ancestors also include `flow-tile-container` and `flow-grid-tile-container` | Discover visible image tiles with one media-ID image. Validate the associated More button separately at action time (0.5.2 correction). |
 | More control | `flow-image-hotbar` → `flow-hotbar-container` → `button`, `aria-label="More options"`, `aria-haspopup="menu"` | Resolve within the selected image tile, never from a global More query. |
 | Image menu ownership | Expanded More has `aria-controls` resolving to the visible `div[role="menu"]`; menu IDs are generated | Read the live ARIA relationship, never hardcode the captured ID. |
 | Image menu contents | `flow-image-context-menu-items` → `flow-media-context-menu-items` → `flow-menu-item` → `button[role="menuitem"]` | Verify image context within the linked menu. |
@@ -48,3 +48,13 @@ The latest supplied 0.2.1 format-v2 capture has four snapshots with an active ob
 The scroll report identifies a div with cdkvirtualscrollingelement, 29,989px scroll height and 906px viewport height under flow-project-page. The centralized collection selector is flow-project-page [cdkvirtualscrollingelement], checked for unique live ancestry. It is not a guessed body/window scroller. The capture also shows flow-collection-tile thumbnails without media IDs; these are excluded by the observed image-tile/media-ID contract.
 
 At the user's request, 0.3.0 implements automatic collection discovery and bulk processing. The missing prior single-image browser success is not represented as a pass. The queue executes real DOM actions and requires browser completion between images. Authenticated discovery/download acceptance remains pending. Stable-bottom discovery is a heuristic, IDs must be reacquired, and folders are not recursively opened; see README limitations.
+
+## Version 0.5.2 — confirmed missing-hotbar discovery failure
+
+The newly supplied 0.5.1 format-v2 capture contains three retained snapshots and no manual menu interactions. The baseline samples 24 `flow-image-tile` images with `data-media-id`, associated hidden/visible More controls, and the known project scroll region. Both later snapshots sample 18 visible generated image tiles with media IDs, plus six ingredient thumbnails. None of the 18 generated cards has a captured image hotbar/More descendant; their context contains only the hover-footer control. Collection scroll height also changes. This is direct evidence that image identity can remain valid while image actions are unmounted.
+
+The old discovery/reacquisition requirement of exactly one More button per tile therefore incorrectly rejects all 18 sampled generated cards. Version 0.5.2 removes this requirement from identity, retains the card/media-ID/visibility/unique-image checks, waits boundedly for a More control before acting, and stops the queue when all image controls remain absent. No alternative action selector, class, synthetic hover, or private application state was invented.
+
+The reason Flow removed the hotbars is **not established**. No selected-state values, manual selection transitions, or new menu/2K/download completion evidence are present. Ingredient thumbnails are not treated as generated assets or selected IDs. Current selected-image downloading stays disabled. The capture cannot establish the full collection total.
+
+Count-only initial/latest discovery diagnostics now separate raw page images, matching image-card elements, accepted identities, rejection reasons, and absent/ambiguous More controls. A failure-side Copy discovery diagnostics button takes a fresh real inspector snapshot and exports these counts alongside the existing graph. Raw media IDs stay excluded from ordinary bulk results; the explicit developer capture remains private evidence to review before sharing.
