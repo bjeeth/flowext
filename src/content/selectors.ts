@@ -52,3 +52,6 @@ export const FLOW = {
 
 export const TIMEOUTS = { menu: 5000, download: 120000, poll: 500 } as const;
 export const DISCOVERY = { timeout: 120000, settle: 700, bottomWait: 1200, stableRounds: 4, maxSteps: 1000, maxAssets: 10000, retries: 2 } as const;
+
+/** Verified by supplied selection checkpoints: 4 → 0 → 1 selected wrappers. */
+export const SELECTED_TILE = 'flow-tile-container.selected';

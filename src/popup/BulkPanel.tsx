@@ -45,7 +45,6 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
   async function command(action: BulkCommand['action']) {
     setBusy(true); setPendingAction(action); setError(''); setNotice('');
     try {
-      if (action === 'start' && scope === 'selected') throw new Error('Selected-image downloads need verified Flow selection evidence. Capture selection DOM first.');
       if (action === 'start' || action === 'retry') {
         // Retry keeps the original export destination; a new Start uses this field.
         const destination = normalizeDownloadFolder(action === 'retry' ? session.settings.folder ?? '' : folder);
@@ -98,7 +97,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not capture discovery diagnostics.'); }
     finally { setBusy(false); }
   }
-  const activity = scope === 'all' && session.stage !== 'IDLE' ? <section className={`activity-card tone-${status.tone}`} aria-label="Export progress">
+  const activity = (session.settings.scope ?? 'all') === scope && session.stage !== 'IDLE' ? <section className={`activity-card tone-${status.tone}`} aria-label="Export progress">
       <div className="activity-heading"><div className="activity-title" role="status"><span className="status-dot" /><strong>{status.title}</strong></div>{elapsed && <span className="elapsed">{elapsed}</span>}</div>
       <p className="hint">{status.detail}</p>
       {session.stage === 'DISCOVERING' && <progress aria-label="Discovering images" />}
@@ -119,7 +118,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       <div className="collection-count"><span className="surface-icon"><Icon name="grid" /></span><div><strong>{session.discoveryComplete ? `${total.toLocaleString()} images` : total ? `${total.toLocaleString()} found` : session.stage === 'IDLE' ? 'Not scanned yet' : 'Scan incomplete'}</strong><span>{session.discoveryComplete ? 'In this project collection' : session.active ? 'Scanning the collection' : 'Start an export or preview the count'}</span></div></div>
       <button className="icon-button" aria-label="Refresh image collection" title="Scan images without downloading" disabled={busy || session.active} onClick={() => void command('discover')}><Icon name="refresh" /></button>
     </section>}
-    {scope === 'selected' && <SelectionInspector tabId={tabId} />}
+    {scope === 'selected' && <><p className="hint">Select images in Flow first. Downloads include selected cards currently loaded in the page; offscreen selections may be omitted. The list is fixed when you start.</p><SelectionInspector tabId={tabId} /></>}
     {(session.active || hasProgress) && activity}
     {session.active ? <div className="active-destination"><Icon name="folder" size={16} /><span>Saving to Downloads{session.settings.folder ? ` / ${session.settings.folder}` : ''}</span></div> : <section className="destination" aria-label="Download destination">
       <div className="field-heading"><label htmlFor="download-folder">Download folder</label><span className="field-note">Optional</span></div>
@@ -137,23 +136,23 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       </div>
     </details>}
     {!session.active && !hasProgress && activity}
-    {(error || (scope === 'all' && session.error)) && <p className="error" role="alert">{error || session.error}</p>}
+    {(error || ((session.settings.scope ?? 'all') === scope && session.error)) && <p className="error" role="alert">{error || session.error}</p>}
     {scope === 'all' && session.stage === 'ERROR' && !session.active && <div className="discovery-help">
       {session.discovery && <p className="hint">Latest scan: {session.discovery.latest.collectionImages} matching image elements, {session.discovery.latest.acceptedImages} supported cards, {session.discovery.latest.imagesWithoutMore} without More controls. These are rendered counts, not the full project total.</p>}
       <button className="wide" disabled={busy} onClick={() => void copyDiscoveryDiagnostics()}><Icon name="report" size={16} />Copy discovery diagnostics</button>
     </div>}
-    {scope === 'all' && failed > 0 && <details className="failed-list"><summary>Failed images · {failed}</summary>{session.assets.filter(asset => asset.status === 'failed').map(asset => <div className="failed-item" key={asset.id}><strong>{asset.label}</strong><p>{asset.error}</p><small>{asset.attempts} attempts</small></div>)}</details>}
+    {(session.settings.scope ?? 'all') === scope && failed > 0 && <details className="failed-list"><summary>Failed images · {failed}</summary>{session.assets.filter(asset => asset.status === 'failed').map(asset => <div className="failed-item" key={asset.id}><strong>{asset.label}</strong><p>{asset.error}</p><small>{asset.attempts} attempts</small></div>)}</details>}
     <div className="export-actions" data-active={session.active}>
       {session.active ? <div className="queue-controls">
         <button className="primary" disabled={busy} onClick={() => void command(session.pauseRequested || session.stage === 'PAUSED' ? 'resume' : 'pause')}><Icon name={session.pauseRequested || session.stage === 'PAUSED' ? 'play' : 'pause'} />{session.pauseRequested || session.stage === 'PAUSED' ? 'Resume' : 'Pause'}</button>
         <button disabled={busy} onClick={() => void command('cancel')}><Icon name="close" />Cancel</button>
       </div> : <>
-        <button className="primary start-export" disabled={scope === 'selected' || busy || !preferencesReady || !!folderError || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}><Icon name="download" />{pendingAction === 'start' ? 'Starting export…' : scope === 'selected' ? 'Download Selected as 2K' : session.stage === 'COMPLETED' ? 'Start new export' : 'Download All as 2K'}</button>
-        {scope === 'all' && failed > 0 && <button className="wide" disabled={busy || !preferencesReady} onClick={() => void command('retry')}><Icon name="refresh" size={16} />Retry Failed</button>}
+        <button className="primary start-export" disabled={(scope === 'selected' && session.selectedDownloadSupport !== 1) || busy || !preferencesReady || !!folderError || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}><Icon name="download" />{pendingAction === 'start' ? 'Starting export…' : scope === 'selected' ? 'Download Selected as 2K' : session.stage === 'COMPLETED' ? 'Start new export' : 'Download All as 2K'}</button>
+        {(session.settings.scope ?? 'all') === scope && failed > 0 && <button className="wide" disabled={busy || !preferencesReady} onClick={() => void command('retry')}><Icon name="refresh" size={16} />Retry Failed</button>}
       </>}
-      <p className="action-hint">{scope === 'selected' ? 'Selected downloads are unavailable until setup is verified.' : session.active ? 'Closing this panel keeps the export running.' : session.stage === 'COMPLETED' ? 'A new export downloads the collection again.' : 'Find images, upscale to 2K, and save one at a time.'}</p>
+      <p className="action-hint">{scope === 'selected' ? (session.selectedDownloadSupport === 1 ? 'Download selected cards currently loaded in Flow.' : 'Reload the updated extension and refresh Flow to enable selected downloads.') : session.active ? 'Closing this panel keeps the export running.' : session.stage === 'COMPLETED' ? 'A new export downloads the collection again.' : 'Find images, upscale to 2K, and save one at a time.'}</p>
     </div>
-    {scope === 'all' && session.stage !== 'IDLE' && <button className="text-button result-copy" disabled={busy} onClick={() => void copyReport()}><Icon name="report" size={16} />Copy bulk result</button>}
+    {(session.settings.scope ?? 'all') === scope && session.stage !== 'IDLE' && <button className="text-button result-copy" disabled={busy} onClick={() => void copyReport()}><Icon name="report" size={16} />Copy bulk result</button>}
     {notice && <p className="notice" role="status">{notice}</p>}
     {report && <details open><summary>Bulk result</summary><pre tabIndex={0}>{report}</pre></details>}
   </section>;
