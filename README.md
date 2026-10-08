@@ -1,6 +1,6 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension project for Google Flow. **Version 0.2.0 implements Phase 1 inspection and Phase 2 single-image automation from real authenticated DOM evidence. The single-image action still requires live browser validation; bulk processing is not implemented.** There is no simulated progress, mock Flow data, or private API use.
+Manifest V3 Chrome/Edge extension project for Google Flow. **Version 0.2.1 implements Phase 1 inspection and Phase 2 single-image automation from real authenticated DOM evidence. The single-image action still requires live browser validation; bulk processing is not implemented.** There is no simulated progress, mock Flow data, or private API use.
 
 The requested workflow is `image → More → Download → 2K Upscaled → browser download complete`. The supplied 0.1.1 capture now establishes card ancestry, More ownership, Download and 2K menu items, and a manual 2K click. The implementation follows that evidence. Authenticated Flow is unavailable in this cloud browser, so a build or unit-test pass does not establish live download success.
 
@@ -48,14 +48,22 @@ The cloud Chromium smoke test was attempted but blocked by managed `ExtensionIns
 4. Click **Load unpacked** and select the **dist** folder containing `manifest.json` (or `flow-bulk-downloader/dist` inside the supplied source/build ZIP).
 5. Pin **Flow Bulk Downloader** in the browser toolbar.
 6. Open `https://flow.google.com/` and your authenticated image project.
-7. Click the toolbar icon, then **Start menu capture**.
+7. Click the toolbar icon to use the download controls. For diagnostics, expand **Developer tools · DOM inspector** and click **Start menu capture**.
 
 Minimum Chrome/Edge version is 116 for the side panel API. If Flow redirects to another hostname, inspection refuses to run; record the final hostname so the supported scope can be reviewed. Do not broaden the extension to all websites.
 
+## Current product scope and version 0.2.1
+
+The intended final product is one-click **Download All as 2K**, with full collection discovery and a sequential queue. This release is a single-image validation build, not that completed bulk product. Bulk implementation remains gated by an actual automated single-image success, as required by the development directive.
+
+The default panel is now the download control panel. The inspector is retained under collapsed **Developer tools · DOM inspector**. The header always shows the installed extension version. If a Flow tab still runs an older inspector without the automation protocol, the panel explicitly asks you to refresh Flow instead of quietly showing only inspection controls. Download-capable page sessions update their viewport image list automatically when idle. This is not a complete project count.
+
+After an attempt, **Copy operation result** fetches fresh page state and exports stage/timestamps, stage history, error, and sanitized browser download metadata. It omits DOM graphs, media/asset IDs, source/referrer URLs, and full local file paths. This report diagnoses the actual operation; it does not assert that the file is the correct 2K image. If clipboard access fails, the JSON remains selectable. Single-image menu clicks are automatic after the download button; no manual More/Download/2K clicking is needed.
+
 ## Phase 2 live single-image test
 
-1. Build or extract the 0.2.0 ZIP. In `chrome://extensions` or `edge://extensions`, reload/load unpacked **dist/**, then refresh the Flow project to replace the old injected script.
-2. Make the intended generated image visible, close all Flow menus, and open the extension. Prefer **Open inspector side panel** so status remains visible.
+1. Build or extract the 0.2.1 ZIP. In `chrome://extensions` or `edge://extensions`, reload/load unpacked **dist/**, then refresh the Flow project to replace the old injected script.
+2. Make the intended generated image visible, close all Flow menus, and open the extension. Prefer **Open download side panel** so status remains visible.
 3. Click **Rescan visible images**, then choose one loaded image. Labels follow filtered DOM order, not project asset indexes; use a viewport with one image for the first test. This list is deliberately not complete project discovery.
 4. Click **Download selected image as 2K**. Accept Chrome's optional Downloads permission prompt. The extension opens that image's More menu, its Download submenu, and selects 2K. You should not manually click menus during this test.
 5. Observe `OPENING MENU → OPENING DOWNLOAD MENU → SELECTING 2K → WAITING FOR DOWNLOAD`. `COMPLETED` is set only from a matching Chrome download whose browser state is `complete`. The UI shows actual ID, filename, received/total bytes, and errors.
@@ -70,7 +78,7 @@ Cancellation stops further UI actions and tracking, and leaves already-started b
 
 Version **0.1.1** fixes stale popup/side-panel exports and makes starting capture the primary action. Reload the extension and refresh Flow before this procedure; the UI detects older injected scripts. This UI change does not add download automation.
 
-1. Start with one generated image visible and all menus closed. Click **Take DOM snapshot** if you want a baseline preview; opening the extension already attaches to the live page session.
+1. Expand **Developer tools · DOM inspector**. Start with one generated image visible and all menus closed. Click **Take DOM snapshot** if you want a baseline preview; opening the extension already attaches to the live page session.
 2. Enable debug logging if wanted, then click **Start menu capture** and confirm the status says **Observing DOM changes**. Page DevTools will show `[FLOW-BULK][DISCOVERY]`, `[FLOW-BULK][INSPECTION]`, and errors prefixed `[FLOW-BULK][ERROR]`.
 3. Open the image's More menu manually. Wait at least half a second for a snapshot.
 4. Open/hover **Download** as required by the actual UI. Wait for **2K Upscaled** to be visible. The inspector does not operate these controls.
@@ -78,7 +86,7 @@ Version **0.1.1** fixes stale popup/side-panel exports and makes starting captur
 6. Click **Stop and copy JSON** (or **Stop observing**, then **Copy JSON**). Review identifiers, then supply the JSON to development. The inspector records only recognized workflow labels, structural metadata, and allowlisted attributes; it excludes full HTML, project URLs, media URLs, prompts, cookies, and tokens. Arbitrary identifier values are not guaranteed free of sensitive information.
 7. Separately perform one manual 2K download and note whether it starts immediately or after processing, expected filename/format, approximate timing, and success/failure UI. Do not share signed download URLs or session credentials.
 
-Keep the popup open while capturing, or use **Open inspector side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopening the popup or panel attaches to the current session; both views synchronize even when their previous state was idle. Copy fetches live bound-tab state and refuses an unstarted capture. Commands remain attached to the captured tab rather than following an unrelated active tab. **Clear capture history** is unavailable while observing. After observation stops, it resets all pinned/rolling captures to a fresh baseline and requires starting capture again. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
+Keep the popup open while capturing, or use **Open download side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopening the popup or panel attaches to the current session; both views synchronize even when their previous state was idle. Copy fetches live bound-tab state and refuses an unstarted capture. Commands remain attached to the captured tab rather than following an unrelated active tab. **Clear capture history** is unavailable while observing. After observation stops, it resets all pinned/rolling captures to a fresh baseline and requires starting capture again. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
 
 ## Architecture and selectors
 
@@ -91,6 +99,7 @@ src/content/single-automation.ts   Bounded one-image state machine
 src/popup/SingleImagePanel.tsx      Explicit one-image selection/test UI
 src/shared/automation-types.ts     One-image/download message and state models
 src/shared/automation-client.ts    Bound-tab single-image command transport
+src/shared/operation-report.ts     Sanitized current-operation evidence export
 src/content/content.ts            Scoped, idempotent injection and observer/message lifecycle
 src/content/selectors.ts          All generic semantic diagnostic probes and bounds
 src/content/flow-dom.ts            Name/state/structure evidence and candidate relationships

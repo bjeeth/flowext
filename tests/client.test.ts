@@ -55,3 +55,10 @@ it('requires refresh when an older content script replies after an extension upd
   transport(old);
   await expect(inspectTab('get', false, 12)).rejects.toThrow('older inspector');
 });
+it('explains page refresh when an invalidated content script blocks reinjection', async () => {
+  const { tabs, scripting } = transport(session(null));
+  tabs.sendMessage.mockRejectedValue(new Error('Receiving end does not exist.'));
+  await expect(inspectTab('get', false, 12)).rejects.toThrow('Refresh Flow after reloading the extension');
+  expect(scripting.executeScript).toHaveBeenCalledTimes(1);
+  expect(tabs.sendMessage).toHaveBeenCalledTimes(2);
+});

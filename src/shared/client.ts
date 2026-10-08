@@ -20,7 +20,8 @@ export async function inspectTab(action: InspectorCommand['action'], debug: bool
   } catch {
     // This guarded entry installs at most once. It performs no clicks or network requests.
     await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
-    reply = await chrome.tabs.sendMessage(tabId, command) as InspectorReply;
+    try { reply = await chrome.tabs.sendMessage(tabId, command) as InspectorReply; }
+    catch { throw new Error('Flow page could not attach to this extension build. Refresh Flow after reloading the extension, then reopen it.'); }
   }
   if (!reply || !reply.ok) throw new Error(reply?.error ?? 'Flow inspector did not respond. Reopen the extension on the Flow tab.');
   if (reply.session.captureProtocol !== 1) throw new Error('This Flow tab is running an older inspector. Reload the extension, refresh the Flow page, then reopen the extension.');

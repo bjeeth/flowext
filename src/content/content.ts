@@ -10,6 +10,7 @@ import type { AutomationCommand, AutomationReply } from '../shared/automation-ty
 const global = globalThis as typeof globalThis & { __flowBulkInspectorInstalled?: boolean };
 if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   global.__flowBulkInspectorInstalled = true;
+  const installedBuildVersion = chrome.runtime.getManifest().version;
   let observer: MutationObserver | undefined;
   let debounce: ReturnType<typeof setTimeout> | undefined;
   let expiry: ReturnType<typeof setTimeout> | undefined;
@@ -96,7 +97,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     document.removeEventListener('load', schedule, true);
     for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
   };
-  const session = (): InspectorSession => ({ single: single.session(), captureProtocol: 1, buildVersion: chrome.runtime.getManifest().version, observing, debug, latest,
+  const session = (): InspectorSession => ({ single: single.session(), captureProtocol: 1, buildVersion: installedBuildVersion, observing, debug, latest,
     observation: { active: observing, startedAt: observationStartedAt, stoppedAt: observationStoppedAt, lastError: observationError },
     sessionId: capture.sessionId,
     history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
@@ -107,7 +108,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     try {
       if (typeof message.debug === 'boolean') debug = message.debug;
       switch (message.action) {
-        case 'get': break;
+        case 'get': single.refresh(); break;
         case 'scan': scan(); single.refresh(); break;
         case 'observe':
           stop(); scan(); observing = true; observationStartedAt = new Date().toISOString(); observationStoppedAt = null;

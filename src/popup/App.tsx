@@ -15,6 +15,8 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [tabId, setTabId] = useState<number>();
   const [settingsReady, setSettingsReady] = useState(false);
   const [windowId, setWindowId] = useState<number>();
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const buildVersion = chrome.runtime.getManifest().version;
   const mounted = useRef(true);
   const commandVersion = useRef(0);
   useEffect(() => {
@@ -105,9 +107,17 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   }
   const report = session?.latest;
   return <main>
-    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Single-image validation & DOM inspector{session?.buildVersion ? ` · ${session.buildVersion}` : ''}</p></div></header>
-    {session?.single && tabId !== undefined && <SingleImagePanel tabId={tabId} session={session.single} debug={debug} rescan={() => void run('scan')} />}
-    <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture the actual image and menu structure before enabling download automation.</p></section>
+    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>2K image downloads · v{buildVersion}</p></div></header>
+    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : session?.single ? 'Flow connected' : session ? 'Refresh Flow to activate download automation' : 'Open a Flow project to begin.'}</div>
+    {session && !session.single && <p className="error" role="alert">This tab still has inspector {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. Download automation is unavailable in the old page script.</p>}
+    {error && <p className="error" role="alert">{error}</p>}
+    {session?.single && tabId !== undefined && <SingleImagePanel tabId={tabId} session={session.single} debug={debug} rescan={() => void run('scan')} buildVersion={buildVersion} contentVersion={session.buildVersion} />}
+    {settingsReady && (!session || !session.single) && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
+    {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open download side panel</button>}
+    <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
+    <details className="developer-tools" onToggle={event => setInspectorOpen(event.currentTarget.open)}><summary>Developer tools · DOM inspector{session?.observing ? ' · recording' : ''}</summary>
+    {inspectorOpen && <>
+    <section className="intro"><span className="badge">READ ONLY</span><h2>Inspect your Flow project</h2><p>Capture image and menu structure when diagnosing Flow UI changes.</p></section>
     <div className="status" role="status">{session?.observing ? 'Observing DOM changes · stops after 10 minutes' : report ? 'Snapshot captured' : 'Open a Flow project to begin.'}</div>
     <section className="stats" aria-label="Inspection results">
       <div><strong>{report?.candidates.length ?? '—'}</strong><span>Sampled image candidates</span></div>
@@ -122,11 +132,9 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
       <button disabled={busy || !settingsReady} onClick={() => void run('scan')}>Take DOM snapshot</button>
       {session?.observing && <button disabled={busy} onClick={() => void run('stop')}>Stop observing</button>}
     </div>
-    {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open inspector side panel</button>}
-    <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <p className="hint">Debug changes apply on the next inspection action.</p>
     {session?.observation?.lastError && <p className="error" role="alert">{session.observation.lastError}</p>}
-    {error && <p className="error" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
+    {notice && <p className="notice" role="status">{notice}</p>}
     {session && <>
       {session.interactionSnapshots.length === 0 && <p className="notice">No manual interactions recorded yet. Click Start menu capture, confirm the status says Observing, then open the image menus manually.</p>}
       {!session.checkpoints.qualityVisible && <p className="hint">No visible 2K Upscaled snapshot captured yet. Open More → Download and leave the quality menu visible for at least half a second.</p>}
@@ -139,6 +147,8 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
       <p className="hint">Copy JSON reads the live captured tab. Clear history resets the capture and requires starting it again.</p>
       <button className="wide" disabled={busy || session.observing} onClick={() => void run('clear')}>Clear capture history</button>
     </>}
-    <footer>Single-image automation uses captured Flow DOM evidence and actual Chrome download events. Bulk processing requires a successful live single-image test. Inspector controls remain read only.</footer>
+    </>}
+    </details>
+    <footer>Downloads run inside the Flow page and continue if you close this panel. Bulk processing awaits a successful real single-image test.</footer>
   </main>;
 }

@@ -11,7 +11,8 @@ export class SingleImageAutomation {
   private debug = false;
   private active = false;
   constructor(private adapter: FlowDOMAdapter, private url: () => string) {}
-  session(): SingleSession { return { protocol: 1, assets: [...this.assets], state: { ...this.state } }; }
+  session(): SingleSession { return { protocol: 1, assets: [...this.assets], state: { ...this.state,
+    ...(this.state.steps ? { steps: this.state.steps.map(step => ({ ...step })) } : {}) } }; }
   refresh(): SingleSession {
     if (!this.active) this.assets = this.adapter.detectAssets();
     return this.session();
@@ -23,7 +24,9 @@ export class SingleImageAutomation {
     if (!asset) throw new Error('Rescan visible images and select one image.');
     if (!asset.loaded) throw new Error('The selected image is still loading.');
     this.active = true; this.debug = debug; this.controller = new AbortController(); this.runId = crypto.randomUUID();
-    this.state = { stage: 'OPENING_MENU', assetKey, assetLabel: asset.label, startedAt: new Date().toISOString() };
+    const startedAt = new Date().toISOString();
+    this.state = { stage: 'OPENING_MENU', assetKey, assetLabel: asset.label, startedAt,
+      steps: [{ stage: 'OPENING_MENU', enteredAt: startedAt }] };
     const runId = this.runId; const initialUrl = this.url();
     void this.process(assetKey, runId, initialUrl, this.controller.signal);
     return this.session();
@@ -33,7 +36,7 @@ export class SingleImageAutomation {
     return this.session();
   }
   private transition(stage: SingleStage) {
-    this.state = { ...this.state, stage };
+    this.state = { ...this.state, stage, steps: [...(this.state.steps ?? []), { stage, enteredAt: new Date().toISOString() }] };
     if (this.debug) console.info('[FLOW-BULK][AUTOMATION]', stage, this.state.assetLabel);
     if (this.debug && stage === 'WAITING_FOR_DOWNLOAD') console.info('[FLOW-BULK][DOWNLOAD] 2K action initiated; awaiting browser event.');
   }
@@ -75,7 +78,8 @@ export class SingleImageAutomation {
       }
       throw new Error('Download timed out after 120 seconds. It may still be processing or lack a Flow origin/referrer. Check browser Downloads before retrying.');
     } catch (error) {
-      this.state = { ...this.state, stage: signal.aborted ? 'CANCELLED' : 'FAILED', error: error instanceof Error ? error.message : 'Single-image operation failed.' };
+      this.transition(signal.aborted ? 'CANCELLED' : 'FAILED');
+      this.state = { ...this.state, error: error instanceof Error ? error.message : 'Single-image operation failed.' };
       if (this.debug) console.error('[FLOW-BULK][ERROR]', this.state.error);
     } finally {
       if (armed) { try { await this.monitor('release', runId); } catch { /* Result remains visible; expiry bounds worker state. */ } }

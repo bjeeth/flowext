@@ -28,7 +28,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Take DOM snapshot' }).click();
+  await page.getByRole('button', { name: 'Reconnect to Flow' }).click();
   await page.getByRole('alert').filter({ hasText: 'Open https://flow.google.com/' }).waitFor();
   await page.getByRole('checkbox', { name: 'Debug console logging' }).check();
   await page.waitForFunction(async () => (await chrome.storage.local.get('debug')).debug === true);
@@ -37,7 +37,7 @@ try {
   assert(await page.getByRole('checkbox', { name: 'Debug console logging' }).isChecked(), 'Debug preference did not persist');
   await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Open inspector side panel' }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Open download side panel' }).count(), 0);
   assert.equal(await page.getByRole('button', { name: /download all/i }).count(), 0, 'Inspector must not expose fake download controls');
   assert.deepEqual(errors, []);
   console.log('Chromium smoke passed: MV3 worker loaded, popup and side panel rendered, unrelated-page inspection refused, debug preference persisted, no JS errors.');

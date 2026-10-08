@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Recorded cloud results: TypeScript and production build passed; 51/51 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); dependency installation passed using the existing writable `/workspace/.npm-cache` with lockfile integrity verification. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
+Recorded cloud results: TypeScript and production build passed; 54/54 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); dependency installation passed using the existing writable `/workspace/.npm-cache` with lockfile integrity verification. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
 
 ## Local checks
 
@@ -52,3 +52,9 @@ The 51 tests include new browser-metadata and Chrome-transport checks for exact 
 `npm ci --cache /workspace/.npm-cache --no-audit --no-fund`, `npm test`, and `npm run build` passed. A first dependency install using the default home cache failed because that path was unavailable; the existing writable cache corrected setup without weakening integrity verification or changing dependencies. The build verifies optional-only Downloads access, unchanged exact-host security, required MV3 files, and a self-contained classic content script. An initial build caught an ESM shared chunk in the injected entry; the runtime dependency was removed and the verified build passes.
 
 The managed Chromium extension blocklist is still present. The optional smoke test's stale button label was corrected, but no browser success is claimed. The user must run README's Phase 2 test in normal Chrome/Edge; confirm actual file, 2K dimensions, ID, completion, upscaling latency, and Downloads attribution. Do not infer successful automation from the captured manual click or local unit suite.
+
+## Version 0.2.1 UI and handoff validation
+
+The default surface now shows download controls; inspector controls render only after expanding Developer tools. The real extension UI transport test verifies a legacy page script produces an explicit refresh warning and no silent developer-tool fallback, and a current automation session displays its real download button outside the inspector. No mock Flow DOM/assets are added. Operation-report tests verify that asset references, unexpected fields, source URLs, and local username paths are omitted while actual stage/error/download state remains present. The operation engine records real state-transition times, not simulated progress. A 54-test pass and production build pass are required for this release.
+
+The user's Edge feedback was that only the inspector appeared and no download button was visible. No actual automated single-image success has been reported, so complete discovery, queue, pause/resume, retry, and bulk UI remain gated. The cloud has no authenticated user-browser connector; its managed extension policy still prevents live verification. Follow README's current single-image procedure, then copy the operation result and verify the actual file/dimensions.

@@ -8,6 +8,7 @@ export interface DownloadRecord {
 export interface SingleState {
   stage: SingleStage; assetKey?: string; assetLabel?: string; startedAt?: string; endedAt?: string;
   error?: string; download?: DownloadRecord;
+  steps?: Array<{ stage: SingleStage; enteredAt: string }>;
 }
 export interface SingleSession { protocol: 1; assets: SingleAsset[]; state: SingleState }
 export interface AutomationCommand { type: 'FLOW_SINGLE'; action: 'start' | 'cancel'; assetKey?: string; debug?: boolean }
