@@ -53,8 +53,13 @@ it('syncs an idle panel with capture started elsewhere and copies fresh bound-ta
     expect(sendMessage).toHaveBeenLastCalledWith(12, { type: 'FLOW_INSPECTOR', action: 'get', debug: false });
     // After page upgrade, the current automatic-download control is the main surface.
     // An empty list is genuine no-asset metadata; no fake Flow assets are constructed.
-    backend = { ...backend, buildVersion: '0.3.0', bulk: { protocol: 1, assets: [], stage: 'READY', active: false,
+    backend = { ...backend, buildVersion: '0.4.0', bulk: { protocol: 1, assets: [], stage: 'READY', active: false,
       pauseRequested: false, discoveryComplete: true, settings: { debug: false, retries: 2 } } };
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    // Even a prior bulk script must be refreshed; it would ignore the new folder.
+    expect(button('Download All as 2K')).toBeUndefined();
+    expect(mount.textContent).toContain('Refresh the Flow page');
+    backend = { ...backend, bulk: { ...backend.bulk!, folderSupport: 1 } };
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     const download = button('Download All as 2K');
     expect(download).toBeDefined();

@@ -7,23 +7,25 @@ import type { BulkSession, FlowAsset } from '../shared/bulk-types';
 import { sequentialQueue } from './sequential-queue';
 
 export class BulkAutomation {
-  private value: BulkSession = { protocol: 1, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false } };
+  private value: BulkSession = { protocol: 1, folderSupport: 1, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false } };
   private abort?: AbortController;
   private initialUrl = '';
   constructor(private doc: Document, private adapter: FlowDOMAdapter, private url: () => string) {}
   session(): BulkSession { return { ...this.value, settings: { ...this.value.settings }, assets: this.value.assets.map(asset => ({ ...asset, ...(asset.download ? { download: { ...asset.download } } : {}) })) }; }
-  start(download: boolean, retries: number, debug: boolean): BulkSession {
+  start(download: boolean, retries: number, debug: boolean, folder = ''): BulkSession {
     if (this.value.active) {
       if (!download && this.initialUrl === this.url() && !this.value.discoveryComplete && ['DISCOVERING', 'PAUSED'].includes(this.value.stage)) return this.session();
       throw new Error('A bulk operation is already active.');
     }
     if (!isFlowPage(this.url())) throw new Error('Open a project on https://flow.google.com/.');
     if (!Number.isInteger(retries) || retries < 0 || retries > 2) throw new Error('Retry count must be 0, 1, or 2.');
+    // The worker validates the actual destination before arming any browser download.
+    if (typeof folder !== 'string' || folder.length > 180) throw new Error('Invalid download folder.');
     const reuse = download && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
     const assets = reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : [];
     this.abort = new AbortController(); this.initialUrl = this.url();
-    this.value = { protocol: 1, stage: reuse ? 'RUNNING' : 'DISCOVERING', assets, active: true, pauseRequested: false, discoveryComplete: reuse,
-      startedAt: new Date().toISOString(), settings: { retries, debug } };
+    this.value = { protocol: 1, folderSupport: 1, stage: reuse ? 'RUNNING' : 'DISCOVERING', assets, active: true, pauseRequested: false, discoveryComplete: reuse,
+      startedAt: new Date().toISOString(), settings: { retries, debug, ...(download ? { folder } : {}) } };
     if (reuse) void this.process(this.abort.signal).catch(error => this.fail(error, this.abort!.signal)).finally(() => this.finish());
     else void this.run(download, this.abort.signal);
     return this.session();
@@ -87,7 +89,7 @@ export class BulkAutomation {
         if (stage === 'WAITING_FOR_DOWNLOAD') asset.status = 'downloading';
         if (download) asset.download = download;
         if (this.value.settings.debug) console.info('[FLOW-BULK][AUTOMATION]', asset.label, stage);
-      }, () => this.checkPage());
+      }, () => this.checkPage(), this.value.settings.folder);
       asset.status = 'completed'; return;
     } catch (error) {
       if (signal.aborted) throw error;

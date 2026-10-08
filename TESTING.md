@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Current 0.3.0 results: dependency installation, TypeScript/production build, and 61/62 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image or bulk success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
+Current 0.4.0 results: dependency installation, TypeScript/production build, and 93 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image, bulk, or folder-creation success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
 
 ## Local checks
 
@@ -25,7 +25,7 @@ Automated tests cover exact HTTPS host scoping; exclusion of unrelated pages; ca
 
 ## Phase 2 and later download MVP acceptance — live tests pending
 
-The single-image action is implemented; all live checks below remain unrun. Bulk-related checks require future implementation after one real image succeeds.
+Single-image and bulk code are implemented; all live checks below remain unrun. Validate one real image before running larger exports.
 
 - [ ] One image: correct asset → More → Download → 2K; browser confirms completion.
 - [ ] 5, 10, and 50+ images: exact success/failure counts and one active operation at a time.
@@ -66,3 +66,18 @@ Generic numbered-job tests (no mock Flow DOM/assets) verify concurrency one, awa
 Follow README's live bulk procedure. Verify 1, 5, 10, and 50+ images; actual scroll-container discovery; exclusion of logos/folder thumbnails; deduplication; lazy/virtualized reacquisition; automatic menus/2K; completion before the next image; real counts/files/dimensions; interrupted failure/retry/continue; uncertain attribution/timeout stopping; pause/resume/cancel; page reload/navigation; popup closure/reopen; worker restart; slow loading; disabled/missing 2K; changed DOM. All authenticated checks remain unrun.
 
 The latest 0.2.1 inspector capture is loading/scroll evidence, not an operation result. This release implements the explicitly requested bulk workflow while keeping implementation/local validation distinct from actual browser success.
+
+## Version 0.4.0 folder validation
+
+New tests cover relative/nested/Unicode folders; Windows separators; absolute-path, traversal, reserved-name, and invalid-character rejection; preserving the actual tentative basename/extension; default/recent/new-folder UI choices; validation before requesting permission; persistence; older content-script refusal; asynchronous filename-event callback completion; unchanged unrelated/default downloads; event-order handling; ambiguous download rejection; duplicate uniquification; storage failure; missing tentative filenames; and final-folder mismatch errors. Tests use pure paths, Chrome API metadata/events, and the real extension UI, with no fabricated Flow DOM or production downloads.
+
+Live Chrome/Edge checks remain pending:
+
+- [ ] Load 0.4.0, refresh Flow, and confirm Download folder appears before the start button.
+- [ ] New nested folder: save one actual 2K image; confirm the browser creates folders beneath its configured Downloads location and preserves the format.
+- [ ] Existing folder: save another export to the same name; verify duplicates get browser suffixes without overwriting files.
+- [ ] Recent choice persists after closing/reopening the extension; blank/Use Downloads folder uses the configured default.
+- [ ] Folder stays fixed during pause/resume and Retry Failed; a new export can choose a different destination.
+- [ ] Another non-Flow download retains its normal target; avoid concurrent Flow downloads because attribution has no initiating tab ID.
+- [ ] Override the destination in a browser save prompt; a file completing elsewhere produces an error instead of a successful folder export.
+- [ ] Folder behavior survives worker restart; actual files, paths, counts, and 2K dimensions match the UI.

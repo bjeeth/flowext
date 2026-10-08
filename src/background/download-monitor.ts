@@ -1,6 +1,7 @@
 import { attachDownload, downloadRecord, exactFlow } from './download-policy';
 import type { DownloadCommand, DownloadReply, DownloadWatch } from '../shared/automation-types';
 import { DOWNLOAD_TIMEOUT } from './download-policy';
+import { normalizeDownloadFolder, folderFilename, isDownloadInFolder } from '../shared/download-folder';
 
 const KEY = 'singleDownloadWatch';
 // Serialize all mutations, including events that arrive while Chrome storage is awaited.
@@ -19,8 +20,12 @@ async function processCreated(item: chrome.downloads.DownloadItem) {
 async function refreshed(watch: DownloadWatch): Promise<DownloadWatch> {
   if (!watch.download) return watch;
   const [item] = await chrome.downloads.search({ id: watch.download.id });
-  if (!item) return { ...watch, error: 'The browser download disappeared. Check browser Downloads.' };
-  return { ...watch, download: downloadRecord(item) };
+  if (!item) return { ...watch, error: watch.error ?? 'The browser download disappeared. Check browser Downloads.' };
+  const next = { ...watch, download: downloadRecord(item) };
+  if (!watch.error && watch.folder && item.state === 'complete' && !isDownloadInFolder(watch.folder, item.filename)) {
+    next.error = 'The file completed outside the chosen folder. Check browser Downloads and conflicting filename extensions or save prompts before continuing.';
+  }
+  return next;
 }
 export function installDownloadMonitor() {
   let eventsInstalled = false;
@@ -33,6 +38,25 @@ export function installDownloadMonitor() {
         const watch = await read();
         if (watch?.download?.id === delta.id) await save(await refreshed(watch));
       }).catch(logFailure);
+    });
+    chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
+      // This listener is registered at worker startup so Chrome can wake the worker.
+      // Every download receives exactly one suggestion, including unrelated downloads.
+      void serial(async () => {
+        const watch = await read();
+        if (!watch?.folder || Date.now() > watch.expiresAt) return undefined;
+        const next = attachDownload(watch, item);
+        if (next === watch) return undefined;
+        await save(next);
+        if (next.error) return undefined;
+        try {
+          return { filename: folderFilename(watch.folder, item.filename), conflictAction: 'uniquify' as const };
+        } catch (error) {
+          await save({ ...next, error: error instanceof Error ? error.message : 'Could not set the download folder.' });
+          return undefined;
+        }
+      }).then(suggestion => suggest(suggestion), () => { logFailure(); suggest(); });
+      return true; // Chrome requires this for an asynchronous suggest callback.
     });
   };
   installEvents();
@@ -48,13 +72,14 @@ export function installDownloadMonitor() {
     const tabId = sender.tab.id;
     void serial(async (): Promise<DownloadReply> => {
       if (typeof message.runId !== 'string' || !/^[\w-]{1,80}$/.test(message.runId)) throw new Error('Invalid operation identity.');
-      if (!await chrome.permissions.contains({ permissions: ['downloads'] })) throw new Error('Allow optional Downloads access to test one image.');
+      if (!await chrome.permissions.contains({ permissions: ['downloads'] })) throw new Error('Allow optional Downloads access to start the export.');
       installEvents();
       let watch = await read();
       if (message.action === 'arm') {
         if (watch && Date.now() <= watch.expiresAt && !watch.error && watch.download?.state !== 'complete' && watch.download?.state !== 'interrupted') throw new Error('Another image download is being tracked. Finish or cancel that operation first.');
         if (typeof message.assetKey !== 'string' || !message.assetKey || message.assetKey.length > 120) throw new Error('Invalid image identity.');
-        watch = { runId: message.runId, assetKey: message.assetKey, tabId, armedAt: Date.now(), expiresAt: Date.now() + DOWNLOAD_TIMEOUT };
+        const folder = normalizeDownloadFolder(message.folder ?? '');
+        watch = { runId: message.runId, assetKey: message.assetKey, tabId, folder, armedAt: Date.now(), expiresAt: Date.now() + DOWNLOAD_TIMEOUT };
         await save(watch); return { ok: true, watch };
       }
       if (!watch || watch.runId !== message.runId || watch.tabId !== tabId) throw new Error('Download tracking session was lost. Check browser Downloads before trying again.');

@@ -1,12 +1,13 @@
 import { inspectTab, isFlowUrl } from './client';
 import type { AutomationCommand, AutomationReply } from './automation-types';
 import type { BulkCommand, BulkReply } from './bulk-types';
-export async function bulkCommand(tabId: number, action: BulkCommand['action'], retries = 2, debug = false) {
+export async function bulkCommand(tabId: number, action: BulkCommand['action'], retries = 2, debug = false, folder = '') {
   const tab = await chrome.tabs.get(tabId);
   if (!isFlowUrl(tab.url)) throw new Error('The connected tab is no longer on https://flow.google.com/.');
   const current = await inspectTab('get', debug, tabId);
   if (current.session.bulk?.protocol !== 1) throw new Error('Refresh Flow after loading the bulk extension build.');
-  const reply = await chrome.tabs.sendMessage(tabId, { type: 'FLOW_BULK', action, retries, debug }) as BulkReply;
+  if (folder && current.session.bulk.folderSupport !== 1) throw new Error('Refresh Flow after loading this build to enable destination folders.');
+  const reply = await chrome.tabs.sendMessage(tabId, { type: 'FLOW_BULK', action, retries, debug, folder }) as BulkReply;
   if (!reply?.ok) throw new Error(reply?.error ?? 'Bulk operation did not respond.');
   return reply.bulk;
 }

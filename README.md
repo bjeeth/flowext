@@ -1,6 +1,6 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.3.0** replaces the per-image chooser with **Download All as 2K**.
+Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.4.0** adds a destination-folder choice before **Download All as 2K**.
 
 Bulk automation is implemented and builds locally. **Authenticated Flow download/discovery behavior has not yet been verified end-to-end.** Local tests and DOM captures do not establish production readiness.
 
@@ -12,23 +12,32 @@ Bulk automation is implemented and builds locally. **Authenticated Flow download
 - Pause at a safe boundary, resume, cancel preserving files, capped retries, and Retry Failed.
 - Popup/side panel; automation continues inside Flow after closing extension UI.
 - Stored debug/retry preferences and optional Downloads access requested by Start/Retry.
+- Choose a recent download subfolder or enter a new one; nested folders are created on the first saved file. Flow filenames and extensions are preserved, and duplicates are uniquified.
 - Developer DOM inspector retained behind collapsed Developer tools.
 - No coordinate clicks, private APIs, credential reads, uploads, fake assets/downloads/progress, or upgrade bypasses.
 
 ## Install and use in Chrome/Edge
 
-1. Build from source or extract the **0.3.0 ZIP**.
+1. Build from source or extract the **0.4.0 ZIP**.
 2. Open `chrome://extensions` or `edge://extensions`, enable **Developer mode**, and choose **Load unpacked**.
 3. Select **dist/** containing `manifest.json` (`flow-bulk-downloader/dist` inside the ZIP). When updating, reload the extension and **refresh the Flow page** to replace the old injected script.
-4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.3.0**.
+4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.4.0**.
 5. Prefer **Open download side panel**. Discovery automatically scrolls the supported collection and restores its original position. Wait for **READY** and the discovered count.
-6. Click **Download All as 2K** once. Accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
+6. In **Download folder**, choose a recent folder or enter a name such as `Flow Exports/Project 1`. Leave blank for the browser's configured Downloads folder. Click **Download All as 2K** once and accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
 7. Keep this project tab open and avoid interacting with its menus/scroll area or starting other Flow downloads. Closing the panel does not stop the queue.
 8. Verify files and 2K dimensions in Downloads (`Ctrl+J`). **Copy bulk result** exports actual counts, item attempts/errors, and sanitized download metadata.
 
 No image chooser or repeated manual menu clicking is required. If initial discovery failed, Start runs discovery and processing together. A READY list is reused for Start; Refresh image collection rescans without downloading. Starting a new export after completion rediscovers the collection and intentionally downloads again. Retry Failed preserves completed images; after a stopped queue, it also processes remaining queued images.
 
 Minimum Chrome/Edge version: 116. Redirects to other hostnames are refused. Browser save-location prompts and multiple-download approval are normal browser behavior and are not bypassed; disable “ask where to save each file” in browser settings for unattended saves.
+
+## Destination folders
+
+The folder field names a **relative subfolder of your browser's configured Downloads directory**. Use the input's recent-folder suggestions or type an existing/new name. `Flow Exports/Project 1` saves into `Downloads/Flow Exports/Project 1/`. The browser creates missing folders when saving the first file; choosing a name alone does not create an empty folder. The latest choice and up to eight recent names are remembered locally. Use Downloads folder clears the field for the next Start.
+
+Chrome's Downloads API cannot browse arbitrary disk directories or create empty folders before a download. To use another drive or directory, change the browser's default download location in `chrome://settings/downloads` or `edge://settings/downloads`; subfolders then sit under that location. The extension requests no filesystem or additional host permissions.
+
+The worker's `onDeterminingFilename` listener suggests the selected folder only for the armed, source/time-matched Flow download. It preserves the tentative filename/extension and uses `conflictAction: "uniquify"`. Absolute paths, traversal, invalid Windows characters, and reserved device names are rejected. Destination is fixed for the running queue and Retry Failed; edit it before starting a new export. The final browser filename must be inside the chosen folder or the queue stops with a clear error. Browser save prompts or competing filename extensions can override the suggestion. Avoid simultaneous Flow downloads because the Downloads API has no initiating tab identifier.
 
 ## Development and build
 
@@ -63,7 +72,7 @@ The adapter closes existing image menus through the live expanded More button, o
 
 Safe failures retry up to the selected count (default 2 additional attempts), then fail that item and continue. Interrupted downloads can be retried. **Unresolved post-click timeouts, lost tracking, or ambiguous attribution stop the queue with a clear error**: advancing could assign a late download to another image or duplicate a file. Check Downloads before intentional Retry Failed. No success is guessed.
 
-Pause finishes the current image operation and prevents the next image/retry; discovery pauses between steps. Resume continues the queue position. Cancel aborts future work, marks unprocessed items skipped, and preserves files and already-started browser downloads. Reload/navigation/tab closure stop automation; actions are not automatically replayed. Chrome retains normal filenames, save prompts, and duplicate handling. Renaming, Original-quality export, and ZIP generation are deferred.
+Pause finishes the current image operation and prevents the next image/retry; discovery pauses between steps. Resume continues the queue position. Cancel aborts future work, marks unprocessed items skipped, and preserves files and already-started browser downloads. Reload/navigation/tab closure stop automation; actions are not automatically replayed. Chrome retains save prompts and normal file basenames. Custom basename templates, Original-quality export, and ZIP generation are deferred.
 
 ## Download attribution
 
@@ -85,6 +94,7 @@ src/background/download-policy.ts  Source/time attribution and sanitized records
 src/popup/BulkPanel.tsx              Primary bulk controls, progress/settings/results
 src/shared/bulk-types.ts             Asset/queue/message contracts
 src/shared/automation-client.ts      Bound-tab exact-host transport
+src/shared/download-folder.ts        Relative path validation and destination checks
 src/content/content.ts              Guarded injection and message lifecycle
 src/content/inspector.ts             Read-only developer diagnostics
 public/manifest.json                 MV3 entries and minimal permissions
@@ -99,9 +109,9 @@ The old single-image engine remains internal development code; the product UI us
 | --- | --- |
 | `activeTab` | Temporary access from the toolbar click; exact HTTPS flow.google.com injection only. |
 | `scripting` | Injects page automation/inspector after the user action. |
-| `storage` | Debug/retry preferences and trusted active download-watch state. |
+| `storage` | Debug/retry/folder preferences, recent folder names, and trusted active download-watch state. |
 | `sidePanel` | Persistent controls beside the project. |
-| Optional `downloads` | Requested on Start/Retry; real lifecycle events and matching record search. |
+| Optional `downloads` | Requested on Start/Retry; real lifecycle events, matching record search, and folder filename suggestions. |
 
 No `tabs` permission, persistent/blanket host access, clipboard permission, private API credential access, or external uploads. No cookies/tokens are read or authentication/access/upgrade controls bypassed. Bulk results omit media IDs, URLs, and full local paths; developer DOM captures may contain identifier values. Review them before sharing and never commit real captures.
 
@@ -119,7 +129,8 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Troubleshooting
 
-- **Old inspector/chooser:** load 0.3.0 dist, reload extension, refresh Flow, and confirm the header version.
+- **Old inspector/chooser or missing folder support:** load 0.4.0 dist, reload extension, refresh Flow, and confirm the header version. Older bulk scripts must also be refreshed.
+- **File outside chosen folder:** check browser save-location prompts and other extensions that rename downloads. The queue stops instead of claiming that folder export succeeded. Check the actual file before retrying.
 - **Collection not found/ambiguous:** open an image project on exact Flow and capture scroll ancestry; do not guess a body/window scroller.
 - **Discovery limit/timeout:** list is incomplete; inspect mounting/lazy loading and refresh. No partial list is claimed complete.
 - **Menu/quality failure:** Copy bulk result shows image index, actual stage, attempts, and reason; capture the changed DOM if needed.
@@ -130,4 +141,4 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Validation status
 
-TypeScript, production build, dependency installation, and **62 local tests** pass. Tests verify queue/API/extension-UI transport behavior, not live Flow selectors, virtualization, actual 2K files, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
+TypeScript, production build, dependency installation, and **93 local tests** pass. Tests verify queue/API/extension-UI transport behavior, folder validation/routing, and final-path checks, not live Flow selectors, virtualization, actual 2K files, folder creation on disk, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.

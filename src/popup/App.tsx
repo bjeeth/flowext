@@ -19,7 +19,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const buildVersion = chrome.runtime.getManifest().version;
   const mounted = useRef(true);
   const commandVersion = useRef(0);
-  const hasBulk = session?.bulk?.protocol === 1;
+  const hasBulk = session?.bulk?.protocol === 1 && session.bulk.folderSupport === 1;
   useEffect(() => {
     mounted.current = true;
     void chrome.windows.getCurrent().then(window => { if (mounted.current) setWindowId(window.id); })
@@ -111,11 +111,11 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const report = session?.latest;
   return <main>
     <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Bulk 2K downloads · v{buildVersion}</p></div></header>
-    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : session?.bulk ? 'Flow connected' : session ? 'Refresh Flow to activate bulk automation' : 'Open a Flow project to begin.'}</div>
-    {session && !session.bulk && <p className="error" role="alert">This tab still has page script {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. Bulk automation is unavailable in the old page script.</p>}
+    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : hasBulk ? 'Flow connected' : session ? 'Refresh Flow to activate bulk automation' : 'Open a Flow project to begin.'}</div>
+    {session && !hasBulk && <p className="error" role="alert">This tab still has page script {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. The updated download controls require the new page script.</p>}
     {error && <p className="error" role="alert">{error}</p>}
-    {session?.bulk && tabId !== undefined && <BulkPanel tabId={tabId} session={session.bulk} debug={debug} buildVersion={buildVersion} onUpdate={bulk => setSession(previous => previous ? { ...previous, bulk } : previous)} />}
-    {settingsReady && (!session || !session.bulk) && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
+    {hasBulk && session?.bulk && tabId !== undefined && <BulkPanel tabId={tabId} session={session.bulk} debug={debug} buildVersion={buildVersion} onUpdate={bulk => setSession(previous => previous ? { ...previous, bulk } : previous)} />}
+    {settingsReady && !hasBulk && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
     {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open download side panel</button>}
     <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <details className="developer-tools" onToggle={event => setInspectorOpen(event.currentTarget.open)}><summary>Developer tools · DOM inspector{session?.observing ? ' · recording' : ''}</summary>

@@ -8,10 +8,10 @@ export class DownloadFailure extends Error {
 }
 /** Reused one-image operation; queue waits for this promise before advancing. */
 export async function downloadImage(adapter: FlowDOMAdapter, key: string, assetKey: string, signal: AbortSignal,
-  update: (stage: SingleStage, download?: DownloadRecord) => void, checkPage: () => void): Promise<DownloadRecord> {
+  update: (stage: SingleStage, download?: DownloadRecord) => void, checkPage: () => void, folder = ''): Promise<DownloadRecord> {
   const runId = crypto.randomUUID(); let armed = false; let selected = false; let resolved = false;
   const monitor = async (action: 'arm' | 'get' | 'release') => {
-    const reply = await timedRequest(chrome.runtime.sendMessage({ type: 'FLOW_DOWNLOAD', action, runId, assetKey }), TIMEOUTS.menu,
+    const reply = await timedRequest(chrome.runtime.sendMessage({ type: 'FLOW_DOWNLOAD', action, runId, assetKey, folder }), TIMEOUTS.menu,
       'Browser download monitor did not respond within 5 seconds.') as DownloadReply;
     if (!reply?.ok) throw new Error(reply?.error ?? 'Browser download monitor did not respond.');
     return reply.watch;

@@ -6,13 +6,14 @@ export interface FlowAsset {
 }
 export type BulkStage = 'IDLE' | 'DISCOVERING' | 'READY' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'ERROR';
 export interface BulkSession {
+  folderSupport?: 1;
   protocol: 1; stage: BulkStage; assets: FlowAsset[]; currentId?: string; currentStage?: SingleStage;
   pauseRequested: boolean; active: boolean; discoveryComplete: boolean;
   startedAt?: string; endedAt?: string; error?: string;
-  settings: { retries: number; debug: boolean };
+  settings: { retries: number; debug: boolean; folder?: string };
 }
 export interface BulkCommand {
   type: 'FLOW_BULK'; action: 'get' | 'start' | 'discover' | 'pause' | 'resume' | 'cancel' | 'retry';
-  debug?: boolean; retries?: number;
+  debug?: boolean; retries?: number; folder?: string;
 }
 export type BulkReply = { ok: true; bulk: BulkSession } | { ok: false; error: string };

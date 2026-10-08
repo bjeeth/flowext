@@ -37,7 +37,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
         case 'get': result = bulk.session(); break;
         case 'start': case 'discover':
           if (single.isActive()) throw new Error('A developer single-image operation is already active.');
-          stop(); result = bulk.start(message.action === 'start', message.retries ?? 2, message.debug === true); break;
+          stop(); result = bulk.start(message.action === 'start', message.retries ?? 2, message.debug === true, message.folder ?? ''); break;
         case 'pause': result = bulk.pause(); break;
         case 'resume': result = bulk.resume(); break;
         case 'cancel': result = bulk.cancel(); break;

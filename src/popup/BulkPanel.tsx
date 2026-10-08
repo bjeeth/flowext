@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { bulkCommand } from '../shared/automation-client';
 import { inspectTab } from '../shared/client';
 import type { BulkCommand, BulkSession } from '../shared/bulk-types';
+import { normalizeDownloadFolder } from '../shared/download-folder';
 
 export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { tabId: number; session: BulkSession; debug: boolean; buildVersion: string; onUpdate: (session: BulkSession) => void }) {
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [retries, setRetries] = useState(session.settings.retries); const [notice, setNotice] = useState('');
   const [report, setReport] = useState(''); const autoStarted = useRef(false);
+  const [folder, setFolder] = useState(session.settings.folder ?? '');
+  const [recentFolders, setRecentFolders] = useState<string[]>([]);
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const completed = session.assets.filter(asset => asset.status === 'completed').length;
   const failed = session.assets.filter(asset => asset.status === 'failed').length;
   const skipped = session.assets.filter(asset => asset.status === 'skipped').length;
@@ -14,16 +18,31 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
   const total = session.assets.length; const done = completed + failed + skipped;
   useEffect(() => {
     let disposed = false;
-    void chrome.storage.local.get('retries').then(({ retries: saved }) => {
+    void chrome.storage.local.get(['retries', 'downloadFolder', 'recentDownloadFolders']).then(({ retries: saved, downloadFolder, recentDownloadFolders }) => {
       if (!disposed && Number.isInteger(saved) && saved >= 0 && saved <= 2) setRetries(saved);
-    }).catch(() => setError('Could not read retry preference.'));
+      if (disposed) return;
+      if (session.settings.folder === undefined && typeof downloadFolder === 'string') setFolder(normalizeDownloadFolder(downloadFolder));
+      if (Array.isArray(recentDownloadFolders)) setRecentFolders(recentDownloadFolders.filter((value): value is string => {
+        try { return typeof value === 'string' && !!normalizeDownloadFolder(value); } catch { return false; }
+      }).slice(0, 8));
+    }).catch(() => { if (!disposed) setError('Could not read export preferences. Check your folder before starting.'); })
+      .finally(() => { if (!disposed) setPreferencesReady(true); });
     return () => { disposed = true; };
   }, []);
   async function command(action: BulkCommand['action']) {
     setBusy(true); setError(''); setNotice('');
     try {
       if (action === 'start' || action === 'retry') {
+        // Retry keeps the original export destination; a new Start uses this field.
+        const destination = normalizeDownloadFolder(action === 'retry' ? session.settings.folder ?? '' : folder);
         if (!await chrome.permissions.request({ permissions: ['downloads'] })) throw new Error('Downloads access was declined. No downloads were started.');
+        if (action === 'start') {
+          const recent = destination ? [destination, ...recentFolders.filter(value => value !== destination)].slice(0, 8) : recentFolders;
+          await chrome.storage.local.set({ downloadFolder: destination, recentDownloadFolders: recent });
+          setFolder(destination); setRecentFolders(recent);
+        }
+        onUpdate(await bulkCommand(tabId, action, retries, debug, destination));
+        return;
       }
       onUpdate(await bulkCommand(tabId, action, retries, debug));
     } catch (e) { setError(e instanceof Error ? e.message : 'Bulk operation failed.'); }
@@ -61,14 +80,24 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       <div><strong>{skipped}</strong><span>Skipped</span></div>
     </section>
     <p className="hint">The extension discovers the scrolling collection, then automatically performs More → Download → 2K for each image. Keep this project open and avoid other Flow downloads during the queue.</p>
+    <section className="destination" aria-label="Download destination">
+      <label className="asset-picker" htmlFor="download-folder">Download folder</label>
+      <div className="folder-path"><span>Downloads /</span><input id="download-folder" type="text" list="recent-download-folders" autoComplete="off" placeholder="e.g. Flow Exports/Project 1" maxLength={180}
+        disabled={busy || session.active || !preferencesReady} value={folder} aria-describedby="folder-help" onChange={event => { setFolder(event.target.value); setError(''); }} /></div>
+      <datalist id="recent-download-folders">{recentFolders.map(value => <option key={value} value={value} />)}</datalist>
+      <p className="hint" id="folder-help">Choose a recent folder or enter a new name. Missing folders are created when the first file is saved. Leave blank to use your browser’s Downloads folder.</p>
+      <button disabled={busy || session.active || !preferencesReady || !folder} onClick={() => setFolder('')}>Use Downloads folder</button>
+      {session.active && <p className="hint">This export: Downloads{session.settings.folder ? ` / ${session.settings.folder}` : ''}</p>}
+      {!session.active && failed > 0 && <p className="hint">Retry Failed keeps the original folder: Downloads{session.settings.folder ? ` / ${session.settings.folder}` : ''}.</p>}
+    </section>
     <div className="actions">
-      <button className="primary" disabled={busy || session.active || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}>Download All as 2K</button>
+      <button className="primary" disabled={busy || session.active || !preferencesReady || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}>Download All as 2K</button>
       <button disabled={busy || session.active} onClick={() => void command('discover')}>Refresh image collection</button>
       {session.active && <div className="queue-controls">
         <button disabled={busy} onClick={() => void command(session.pauseRequested || session.stage === 'PAUSED' ? 'resume' : 'pause')}>{session.pauseRequested || session.stage === 'PAUSED' ? 'Resume' : 'Pause'}</button>
         <button disabled={busy} onClick={() => void command('cancel')}>Cancel</button>
       </div>}
-      {!session.active && failed > 0 && <button disabled={busy} onClick={() => void command('retry')}>Retry Failed</button>}
+      {!session.active && failed > 0 && <button disabled={busy || !preferencesReady} onClick={() => void command('retry')}>Retry Failed</button>}
     </div>
     <div className="status" role="status">{session.stage.replaceAll('_', ' ')}{session.pauseRequested && session.stage !== 'PAUSED' ? ' · pause after current operation' : ''}</div>
     {session.discoveryComplete && <><p className="progress-caption">{done} / {total} processed</p><progress max={Math.max(1, total)} value={done} aria-label="Images processed" /></>}
