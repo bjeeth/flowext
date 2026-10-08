@@ -1,4 +1,5 @@
-import { controlKind, describe, isVisible, nodeId } from './flow-dom';
+import { matchesQuality, type DownloadQuality } from '../shared/download-quality';
+import { accessibleName, controlKind, describe, isVisible, nodeId } from './flow-dom';
 import { FLOW, TIMEOUTS } from './selectors';
 import type { SingleAsset } from '../shared/automation-types';
 import { renderedImages } from './image-cards';
@@ -94,42 +95,44 @@ export class FlowDOMAdapter {
       return menu;
     }, TIMEOUTS.menu, signal, 'Image menu did not open or expose its aria-controls relationship.');
   }
-  async openDownloadMenu(menu: HTMLElement, signal: AbortSignal): Promise<HTMLElement> {
+  async openDownloadMenu(menu: HTMLElement, signal: AbortSignal, quality: DownloadQuality = '2k'): Promise<HTMLElement> {
     const download = this.uniqueItem(menu, 'download');
-    if (download.getAttribute('aria-haspopup') !== 'menu') throw new Error('Download is no longer a submenu control. Flow UI changed.');
+    // Flow can omit aria-haspopup; validate the newly opened quality menu instead.
     const before = new Set(this.visibleMenus());
     this.enabled(download); signal.throwIfAborted(); download.click();
     return boundedWait(() => {
       if (!menu.isConnected || !isVisible(menu)) throw new Error('Image menu disappeared before Download opened.');
       const added = this.visibleMenus().filter(item => !before.has(item));
-      if (added.length > 1) throw new Error('Multiple submenus opened. Refusing an ambiguous 2K action.');
+      if (added.length > 1) throw new Error('Multiple submenus opened. Refusing an ambiguous quality action.');
       if (added.length !== 1) return;
       const linkedId = download.getAttribute('aria-controls');
       if (linkedId && added[0].id !== linkedId) throw new Error('Download submenu does not match its ARIA relationship.');
-      return this.findItem(added[0], '2k') ? added[0] : undefined;
-    }, TIMEOUTS.menu, signal, 'Download submenu or 2K Upscaled option did not appear within 5 seconds.');
+      return this.findItem(added[0], quality) ? added[0] : undefined;
+    }, TIMEOUTS.menu, signal, `Download submenu or ${quality.toUpperCase()} option did not appear within 5 seconds.`);
   }
-  select2KDownload(menu: HTMLElement, signal: AbortSignal) {
-    const item = this.uniqueItem(menu, '2k');
+  select2KDownload(menu: HTMLElement, signal: AbortSignal) { this.selectQualityDownload(menu, signal, '2k'); }
+  selectQualityDownload(menu: HTMLElement, signal: AbortSignal, quality: DownloadQuality) {
+    const item = this.uniqueItem(menu, quality);
     this.enabled(item); signal.throwIfAborted(); item.click();
   }
-  async waitFor2KReady(menu: HTMLElement, signal: AbortSignal) {
+  async waitFor2KReady(menu: HTMLElement, signal: AbortSignal) { return this.waitForQualityReady(menu, signal, '2k'); }
+  async waitForQualityReady(menu: HTMLElement, signal: AbortSignal, quality: DownloadQuality) {
     await boundedWait(() => {
-      if (!menu.isConnected || !isVisible(menu)) throw new Error('The quality menu disappeared before 2K became available.');
-      const item = this.findItem(menu, '2k'); if (!item) return;
+      if (!menu.isConnected || !isVisible(menu)) throw new Error(`The quality menu disappeared before ${quality.toUpperCase()} became available.`);
+      const item = this.findItem(menu, quality); if (!item) return;
       const state = describe(item).state;
       return !state.disabled && !state.busy ? true : undefined;
-    }, TIMEOUTS.download, signal, '2K Upscaled remained disabled or processing for 120 seconds.');
+    }, TIMEOUTS.download, signal, `${quality.toUpperCase()} remained disabled or processing for 120 seconds.`);
   }
   private visibleMenus(): HTMLElement[] { return Array.from(this.doc.querySelectorAll<HTMLElement>(FLOW.menu)).filter(isVisible); }
-  private uniqueItem(menu: HTMLElement, kind: 'download' | '2k'): HTMLElement {
+  private uniqueItem(menu: HTMLElement, kind: 'download' | DownloadQuality): HTMLElement {
     const item = this.findItem(menu, kind);
-    if (!item) throw new Error(kind === '2k' ? '2K Upscaled option not found.' : 'Download menu item not found.');
+    if (!item) throw new Error(kind !== 'download' ? `${kind.toUpperCase()} option not found.` : 'Download menu item not found.');
     return item;
   }
-  private findItem(menu: HTMLElement, kind: 'download' | '2k'): HTMLElement | undefined {
-    const items = Array.from(menu.querySelectorAll<HTMLElement>(FLOW.item)).filter(item => item.closest(FLOW.menu) === menu && controlKind(item) === kind && isVisible(item));
-    if (items.length > 1) throw new Error(kind === '2k' ? '2K Upscaled option is ambiguous.' : 'Download menu item is ambiguous.');
+  private findItem(menu: HTMLElement, kind: 'download' | DownloadQuality): HTMLElement | undefined {
+    const items = Array.from(menu.querySelectorAll<HTMLElement>(FLOW.item)).filter(item => item.closest(FLOW.menu) === menu && (kind === 'download' ? controlKind(item) === kind : (matchesQuality(accessibleName(item), kind) || Array.from(item.querySelectorAll('span')).some(span => matchesQuality(span.textContent ?? '', kind)))) && isVisible(item));
+    if (items.length > 1) throw new Error(kind !== 'download' ? `${kind.toUpperCase()} option is ambiguous.` : 'Download menu item is ambiguous.');
     return items[0];
   }
   private enabled(button: HTMLElement, requireVisible = true) {

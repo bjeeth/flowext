@@ -1,4 +1,4 @@
-export type SingleStage = 'IDLE' | 'OPENING_MENU' | 'OPENING_DOWNLOAD_MENU' | 'SELECTING_2K' | 'WAITING_FOR_DOWNLOAD' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type SingleStage = 'IDLE' | 'OPENING_MENU' | 'OPENING_DOWNLOAD_MENU' | 'SELECTING_2K' | 'SELECTING_QUALITY' | 'WAITING_FOR_DOWNLOAD' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 export const runningStage = (stage: SingleStage) => !['IDLE', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(stage);
 export interface SingleAsset { key: string; label: string; loaded: boolean }
 export interface DownloadRecord {

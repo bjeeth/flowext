@@ -1,3 +1,4 @@
+import type { DownloadQuality } from '../shared/download-quality';
 import { useEffect, useState } from 'react';
 import { bulkCommand } from '../shared/automation-client';
 import { inspectTab } from '../shared/client';
@@ -14,6 +15,8 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
   const [retries, setRetries] = useState(session.settings.retries); const [notice, setNotice] = useState('');
   const [report, setReport] = useState('');
   const [scope, setScope] = useState<DownloadScope>(session.settings.scope ?? 'all');
+  const [quality, setQuality] = useState<DownloadQuality>(session.settings.quality ?? '2k');
+  const displayedQuality = session.active ? session.settings.quality ?? '2k' : quality;
   const [folder, setFolder] = useState(session.settings.folder ?? '');
   const [recentFolders, setRecentFolders] = useState<string[]>([]);
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -31,9 +34,10 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
   useEffect(() => { if (session.active) setScope(session.settings.scope ?? 'all'); }, [session.active, session.settings.scope]);
   useEffect(() => {
     let disposed = false;
-    void chrome.storage.local.get(['retries', 'downloadFolder', 'recentDownloadFolders']).then(({ retries: saved, downloadFolder, recentDownloadFolders }) => {
+    void chrome.storage.local.get(['retries', 'downloadFolder', 'recentDownloadFolders', 'downloadQuality']).then(({ retries: saved, downloadFolder, recentDownloadFolders, downloadQuality }) => {
       if (!disposed && Number.isInteger(saved) && saved >= 0 && saved <= 2) setRetries(saved);
       if (disposed) return;
+      if (!session.settings.quality && (downloadQuality === '1k' || downloadQuality === '2k' || downloadQuality === '4k')) setQuality(downloadQuality);
       if (session.settings.folder === undefined && typeof downloadFolder === 'string') setFolder(normalizeDownloadFolder(downloadFolder));
       if (Array.isArray(recentDownloadFolders)) setRecentFolders(recentDownloadFolders.filter((value): value is string => {
         try { return typeof value === 'string' && !!normalizeDownloadFolder(value); } catch { return false; }
@@ -51,10 +55,10 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
         if (!await chrome.permissions.request({ permissions: ['downloads'] })) throw new Error('Downloads access was declined. No downloads were started.');
         if (action === 'start') {
           const recent = destination ? [destination, ...recentFolders.filter(value => value !== destination)].slice(0, 8) : recentFolders;
-          await chrome.storage.local.set({ downloadFolder: destination, recentDownloadFolders: recent });
+          await chrome.storage.local.set({ downloadFolder: destination, recentDownloadFolders: recent, downloadQuality: quality });
           setFolder(destination); setRecentFolders(recent);
         }
-        onUpdate(await bulkCommand(tabId, action, retries, debug, destination, scope));
+        onUpdate(await bulkCommand(tabId, action, retries, debug, destination, scope, action === 'retry' ? session.settings.quality ?? '2k' : quality));
         return;
       }
       onUpdate(await bulkCommand(tabId, action, retries, debug));
@@ -75,7 +79,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       if (!value) throw new Error('Refresh Flow to reconnect the bulk downloader.');
       const text = JSON.stringify({ formatVersion: 1, phase: 'bulk', buildVersion, contentVersion: current.session.buildVersion,
         stage: value.stage, discoveryComplete: value.discoveryComplete, total: value.assets.length, startedAt: value.startedAt,
-        endedAt: value.endedAt, error: value.error, currentStage: value.currentStage, discovery: value.discovery,
+        endedAt: value.endedAt, quality: value.settings.quality ?? '2k', scope: value.settings.scope, error: value.error, currentStage: value.currentStage, discovery: value.discovery,
         assets: value.assets.map(asset => ({ index: asset.index, status: asset.status, attempts: asset.attempts, error: asset.error,
           download: asset.download ? { ...asset.download, filename: asset.download.filename.split(/[\\/]/).pop() } : undefined })) }, null, 2);
       setReport(text);
@@ -109,7 +113,7 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       {session.stage === 'COMPLETED' && <button className="text-button" onClick={() => void openDownloads()}><Icon name="folder" size={16} />Open Downloads folder</button>}
     </section> : null;
   return <section className="bulk-panel" aria-label="Image export">
-    <div className="section-heading"><div><span className="eyebrow">YOUR FLOW PROJECT</span><h2>Export images</h2></div><span className="quality-tag">2K Upscaled</span></div>
+    <div className="section-heading"><div><span className="eyebrow">YOUR FLOW PROJECT</span><h2>Export images</h2></div><span className="quality-tag">{displayedQuality.toUpperCase()}</span></div>
     <div className="scope-toggle" role="group" aria-label="Images to download">
       <button aria-pressed={scope === 'all'} disabled={busy || session.active} onClick={() => setScope('all')}><Icon name="grid" size={16} />All images</button>
       <button aria-pressed={scope === 'selected'} disabled={busy || session.active} onClick={() => setScope('selected')}><Icon name="check" size={16} />Selected images</button>
@@ -130,8 +134,8 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
       {folder && <button className="text-button" disabled={busy || session.active || !preferencesReady} onClick={() => setFolder('')}>Use Downloads folder</button>}
       {scope === 'all' && !session.active && failed > 0 && <p className="hint">Retries keep the original folder: Downloads{session.settings.folder ? ` / ${session.settings.folder}` : ''}.</p>}
     </section>}
-    {!session.active && <details className="export-settings"><summary><Icon name="settings" size={16} /><span>Export settings</span><small>2K · Sequential · {retries} retries</small></summary>
-      <div className="settings-body"><div className="settings-row"><span>Quality</span><strong>2K Upscaled</strong></div><div className="settings-row"><span>Processing</span><strong>One image at a time</strong></div>
+    {!session.active && <details className="export-settings"><summary><Icon name="settings" size={16} /><span>Export settings</span><small>{quality.toUpperCase()} · Sequential · {retries} retries</small></summary>
+      <div className="settings-body"><div className="settings-row"><label htmlFor="download-quality">Quality</label><select id="download-quality" value={quality} disabled={busy} onChange={event => setQuality(event.target.value as DownloadQuality)}>{(['1k', '2k', '4k'] as const).map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></div><div className="settings-row"><span>Processing</span><strong>One image at a time</strong></div>
         <label className="settings-row" htmlFor="retry-count"><span>Retries per image</span><select id="retry-count" disabled={busy || session.active} value={retries} onChange={event => { const value = Number(event.target.value); setRetries(value); void chrome.storage.local.set({ retries: value }).catch(() => setError('Could not save retry preference.')); }}>{[0, 1, 2].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
       </div>
     </details>}
@@ -147,10 +151,10 @@ export function BulkPanel({ tabId, session, debug, buildVersion, onUpdate }: { t
         <button className="primary" disabled={busy} onClick={() => void command(session.pauseRequested || session.stage === 'PAUSED' ? 'resume' : 'pause')}><Icon name={session.pauseRequested || session.stage === 'PAUSED' ? 'play' : 'pause'} />{session.pauseRequested || session.stage === 'PAUSED' ? 'Resume' : 'Pause'}</button>
         <button disabled={busy} onClick={() => void command('cancel')}><Icon name="close" />Cancel</button>
       </div> : <>
-        <button className="primary start-export" disabled={(scope === 'selected' && session.selectedDownloadSupport !== 1) || busy || !preferencesReady || !!folderError || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}><Icon name="download" />{pendingAction === 'start' ? 'Starting export…' : scope === 'selected' ? 'Download Selected as 2K' : session.stage === 'COMPLETED' ? 'Start new export' : 'Download All as 2K'}</button>
+        <button className="primary start-export" disabled={(scope === 'selected' && session.selectedDownloadSupport !== 1) || busy || !preferencesReady || !!folderError || (session.stage === 'READY' && total === 0)} onClick={() => void command('start')}><Icon name="download" />{pendingAction === 'start' ? 'Starting export…' : scope === 'selected' ? `Download Selected as ${quality.toUpperCase()}` : session.stage === 'COMPLETED' ? 'Start new export' : `Download All as ${quality.toUpperCase()}`}</button>
         {(session.settings.scope ?? 'all') === scope && failed > 0 && <button className="wide" disabled={busy || !preferencesReady} onClick={() => void command('retry')}><Icon name="refresh" size={16} />Retry Failed</button>}
       </>}
-      <p className="action-hint">{scope === 'selected' ? (session.selectedDownloadSupport === 1 ? 'Download selected cards currently loaded in Flow.' : 'Reload the updated extension and refresh Flow to enable selected downloads.') : session.active ? 'Closing this panel keeps the export running.' : session.stage === 'COMPLETED' ? 'A new export downloads the collection again.' : 'Find images, upscale to 2K, and save one at a time.'}</p>
+      <p className="action-hint">{scope === 'selected' ? (session.selectedDownloadSupport === 1 ? 'Download selected cards currently loaded in Flow.' : 'Reload the updated extension and refresh Flow to enable selected downloads.') : session.active ? 'Closing this panel keeps the export running.' : session.stage === 'COMPLETED' ? 'A new export downloads the collection again.' : 'Find images and save one at a time at the chosen quality.'}</p>
     </div>
     {(session.settings.scope ?? 'all') === scope && session.stage !== 'IDLE' && <button className="text-button result-copy" disabled={busy} onClick={() => void copyReport()}><Icon name="report" size={16} />Copy bulk result</button>}
     {notice && <p className="notice" role="status">{notice}</p>}
