@@ -1,156 +1,133 @@
 # Flow Bulk Downloader
 
-Manifest V3 Chrome/Edge extension project for Google Flow. **Version 0.2.1 implements Phase 1 inspection and Phase 2 single-image automation from real authenticated DOM evidence. The single-image action still requires live browser validation; bulk processing is not implemented.** There is no simulated progress, mock Flow data, or private API use.
+Manifest V3 Chrome/Edge extension that discovers generated images in the current Google Flow project collection and processes them sequentially through **More → Download → 2K Upscaled → browser download complete**. Version **0.3.0** replaces the per-image chooser with **Download All as 2K**.
 
-The requested workflow is `image → More → Download → 2K Upscaled → browser download complete`. The supplied 0.1.1 capture now establishes card ancestry, More ownership, Download and 2K menu items, and a manual 2K click. The implementation follows that evidence. Authenticated Flow is unavailable in this cloud browser, so a build or unit-test pass does not establish live download success.
+Bulk automation is implemented and builds locally. **Authenticated Flow download/discovery behavior has not yet been verified end-to-end.** Local tests and DOM captures do not establish production readiness.
 
-## Current features
+## Features
 
-- Explicit single-image 2K action for a user-selected, loaded image currently in the viewport.
-- A bounded state machine with 5-second menu waits, a 120-second browser-download wait, errors, and cancellation that preserves files.
-- Optional Chrome Downloads access requested only by the single-image action; actual browser state, ID, bytes, filename, and timestamps are tracked.
-- Explicit, user-initiated inspection restricted to `https://flow.google.com/*`.
-- A bounded sample of up to 24 image-element candidates, nearest plausible card containers, visible/hidden More-control relationships, loading flags, identifier hints, and selection attributes.
-- Visible semantic More, Download, 2K Upscaled, and Original controls, plus menu/listbox structures.
-- Possible scroll regions, without scrolling the page or claiming to discover all assets.
-- Mutation, scroll, and image-load observation; debounced scans; 20 rolling snapshots plus pinned baseline/menu captures and bounded manual-interaction evidence; automatic stop after ten minutes.
-- React popup and side panel with copyable diagnostic JSON and persistent debug preference.
-- Inspector actions remain read only. The separate single-image action invokes existing DOM buttons. No private APIs, direct download requests, credential reads, or telemetry.
+- Automatic collection discovery on connection, scrolling lazy/virtualized content and deduplicating `data-media-id`.
+- One image at a time; reacquire the current card and wait for actual Chrome download completion before advancing.
+- Real discovered/completed/failed/skipped counts, current stage, bytes, download ID, and completion summary.
+- Pause at a safe boundary, resume, cancel preserving files, capped retries, and Retry Failed.
+- Popup/side panel; automation continues inside Flow after closing extension UI.
+- Stored debug/retry preferences and optional Downloads access requested by Start/Retry.
+- Developer DOM inspector retained behind collapsed Developer tools.
+- No coordinate clicks, private APIs, credential reads, uploads, fake assets/downloads/progress, or upgrade bypasses.
 
-The format-v2 capture includes a normalized node graph, parent/ARIA links, detailed image loading state, disabled/busy/selected signals, and scoped manual-interaction snapshots. See [Diagnostic evidence format and review](docs/DIAGNOSTICS.md).
+## Install and use in Chrome/Edge
 
-Candidate IDs identify DOM image nodes within one inspector session. They are **not** verified durable Flow asset IDs. Reported structural paths are evidence for inspection, not supported automation selectors. Counts may include decorative images or duplicate thumbnails. Asset and ancestor identifiers can be present in JSON; review them before sharing. Reports and single-image status live in the page's isolated content-script memory and are lost on reload. Only debug preference is saved to `chrome.storage.local`; the active download watch is stored in trusted `chrome.storage.session` for service-worker restarts, then removed at operation end.
+1. Build from source or extract the **0.3.0 ZIP**.
+2. Open `chrome://extensions` or `edge://extensions`, enable **Developer mode**, and choose **Load unpacked**.
+3. Select **dist/** containing `manifest.json` (`flow-bulk-downloader/dist` inside the ZIP). When updating, reload the extension and **refresh the Flow page** to replace the old injected script.
+4. Open an authenticated image project on exactly `https://flow.google.com/`, click the toolbar icon, and confirm the header says **v0.3.0**.
+5. Prefer **Open download side panel**. Discovery automatically scrolls the supported collection and restores its original position. Wait for **READY** and the discovered count.
+6. Click **Download All as 2K** once. Accept the native optional Downloads permission prompt on first use. The extension automatically performs every image's menu sequence.
+7. Keep this project tab open and avoid interacting with its menus/scroll area or starting other Flow downloads. Closing the panel does not stop the queue.
+8. Verify files and 2K dimensions in Downloads (`Ctrl+J`). **Copy bulk result** exports actual counts, item attempts/errors, and sanitized download metadata.
 
-## Requirements and development
+No image chooser or repeated manual menu clicking is required. If initial discovery failed, Start runs discovery and processing together. A READY list is reused for Start; Refresh image collection rescans without downloading. Starting a new export after completion rediscovers the collection and intentionally downloads again. Retry Failed preserves completed images; after a stopped queue, it also processes remaining queued images.
 
-Use Node.js 24 and npm. Current cloud validation uses Node 24.19.0; dependency versions are pinned in the lockfile.
+Minimum Chrome/Edge version: 116. Redirects to other hostnames are refused. Browser save-location prompts and multiple-download approval are normal browser behavior and are not bypassed; disable “ask where to save each file” in browser settings for unattended saves.
+
+## Development and build
+
+Use Node.js 24 (validated: 24.19.0) and pinned npm dependencies.
 
 ```sh
 cd /workspace/flowext
-npm ci --cache /workspace/.npm-cache
+npm ci --cache /workspace/.npm-cache --no-fund
 npm test
 npm run build
 ```
 
-For local work, use your checkout's directory instead of `/workspace/flowext`, and use plain `npm ci` with your normal writable npm cache.
+Locally, use your checkout directory and plain `npm ci` with a writable cache. Each cloud task is isolated; use the existing checkout without creating a worktree unless explicitly requested. No app server or Flow credentials are needed to build.
 
-`npm run dev` watches and rebuilds extension files. It does not run a web server or automatically reload Chrome. Reload the extension in the browser and refresh the Flow page after rebuilding to replace an already-injected inspector. Each cloud task is already isolated; use the existing checkout without creating a Git worktree unless explicitly requested.
+`npm run dev` watches build output; reload the extension and Flow page manually. Build includes TypeScript and verifies MV3 entries, self-contained classic `content.js`, unchanged required permissions, optional-only Downloads access, and no persistent host permissions. Source maps are not distributed.
 
-The build type-checks TypeScript, creates `dist/`, and verifies MV3 entry files and a standalone content-script bundle. Source maps are not distributed. `npm run test:browser` runs a local Chromium extension smoke test using `/usr/bin/chromium` (override with `CHROMIUM_PATH`). It validates real extension loading and UI rendering on a non-Flow page, not Flow download behavior.
+`npm run test:browser` is an optional non-Flow Chromium extension smoke test (`CHROMIUM_PATH` overrides `/usr/bin/chromium`). Cloud managed `ExtensionInstallBlocklist=["*"]` blocks it. Leave managed policy unchanged; no cloud browser success is claimed.
 
-The cloud Chromium smoke test was attempted but blocked by managed `ExtensionInstallBlocklist=["*"]`; no browser pass is claimed. Run it in a development browser that permits unpacked extensions. Do not change managed security policy to make the test pass. Direct user-browser testing is still required for popup/side-panel behavior and authenticated Flow DOM inspection.
+## Discovery
 
-## Load the unpacked extension
+Real captures establish `flow-image-tile img[data-media-id]` and a project scroll element under `flow-project-page` with `cdkvirtualscrollingelement`. Folder/collection thumbnails use `flow-collection-tile` and are excluded.
 
-1. Build using the commands above, or extract the supplied extension ZIP.
-2. In Chrome open `chrome://extensions`; in Edge open `edge://extensions`.
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select the **dist** folder containing `manifest.json` (or `flow-bulk-downloader/dist` inside the supplied source/build ZIP).
-5. Pin **Flow Bulk Downloader** in the browser toolbar.
-6. Open `https://flow.google.com/` and your authenticated image project.
-7. Click the toolbar icon to use the download controls. For diagnostics, expand **Developer tools · DOM inspector** and click **Start menu capture**.
+Discovery starts at the top, scans supported rendered cards, advances by overlapping viewport-sized scroll steps, and waits for lazy mounting. IDs are deduplicated. Completion requires four unchanged bottom scans with unchanged scroll height and ID count. Limits: 120 seconds, 1,000 steps, and 10,000 assets. Limit/scroll failures report incomplete discovery and do not start a partial list as though complete. Original scroll position is restored; pause time does not consume the deadline.
 
-Minimum Chrome/Edge version is 116 for the side panel API. If Flow redirects to another hostname, inspection refuses to run; record the final hostname so the supported scope can be reviewed. Do not broaden the extension to all websites.
+Queue items retain IDs, not long-lived DOM elements. Before each image, reacquisition uses its media ID and scroll-position hint, falling back to a bounded traversal if virtualized/reordered. Only the current operation retains an image element. Ambiguous duplicate visible cards fail safely.
 
-## Current product scope and version 0.2.1
+Discovery is an observed-end heuristic, not a server-authoritative total. Loading slower than the stable-bottom window can require a rescan. The supported current collection is scanned; folders are not recursively opened, and filter-hidden assets, unsupported videos/canvases, shadow DOM, iframes, and localized labels are not supported. Newly added assets after discovery require Refresh image collection or a new export. Identifier permanence still requires live validation.
 
-The intended final product is one-click **Download All as 2K**, with full collection discovery and a sequential queue. This release is a single-image validation build, not that completed bulk product. Bulk implementation remains gated by an actual automated single-image success, as required by the development directive.
+## Automation, queue controls, and errors
 
-The default panel is now the download control panel. The inspector is retained under collapsed **Developer tools · DOM inspector**. The header always shows the installed extension version. If a Flow tab still runs an older inspector without the automation protocol, the panel explicitly asks you to refresh Flow instead of quietly showing only inspection controls. Download-capable page sessions update their viewport image list automatically when idle. This is not a complete project count.
+The adapter closes existing image menus through the live expanded More button, opens the selected card's More menu, follows its actual `aria-controls` link, finds Download within the owned image context, and requires one newly visible quality submenu. Descendant labels handle the captured icon/text Download button. 2K is clicked only when visible, enabled, and not busy. Menu waits are bounded at 5 seconds; disabled/busy 2K can wait 120 seconds. Browser download waits are 120 seconds; only `state === "complete"` marks completion.
 
-After an attempt, **Copy operation result** fetches fresh page state and exports stage/timestamps, stage history, error, and sanitized browser download metadata. It omits DOM graphs, media/asset IDs, source/referrer URLs, and full local file paths. This report diagnoses the actual operation; it does not assert that the file is the correct 2K image. If clipboard access fails, the JSON remains selectable. Single-image menu clicks are automatic after the download button; no manual More/Download/2K clicking is needed.
+Safe failures retry up to the selected count (default 2 additional attempts), then fail that item and continue. Interrupted downloads can be retried. **Unresolved post-click timeouts, lost tracking, or ambiguous attribution stop the queue with a clear error**: advancing could assign a late download to another image or duplicate a file. Check Downloads before intentional Retry Failed. No success is guessed.
 
-## Phase 2 live single-image test
+Pause finishes the current image operation and prevents the next image/retry; discovery pauses between steps. Resume continues the queue position. Cancel aborts future work, marks unprocessed items skipped, and preserves files and already-started browser downloads. Reload/navigation/tab closure stop automation; actions are not automatically replayed. Chrome retains normal filenames, save prompts, and duplicate handling. Renaming, Original-quality export, and ZIP generation are deferred.
 
-1. Build or extract the 0.2.1 ZIP. In `chrome://extensions` or `edge://extensions`, reload/load unpacked **dist/**, then refresh the Flow project to replace the old injected script.
-2. Make the intended generated image visible, close all Flow menus, and open the extension. Prefer **Open download side panel** so status remains visible.
-3. Click **Rescan visible images**, then choose one loaded image. Labels follow filtered DOM order, not project asset indexes; use a viewport with one image for the first test. This list is deliberately not complete project discovery.
-4. Click **Download selected image as 2K**. Accept Chrome's optional Downloads permission prompt. The extension opens that image's More menu, its Download submenu, and selects 2K. You should not manually click menus during this test.
-5. Observe `OPENING MENU → OPENING DOWNLOAD MENU → SELECTING 2K → WAITING FOR DOWNLOAD`. `COMPLETED` is set only from a matching Chrome download whose browser state is `complete`. The UI shows actual ID, filename, received/total bytes, and errors.
-6. Open Chrome/Edge Downloads (`Ctrl+J`), verify the file, and confirm its image dimensions correspond to Flow's 2K upscale. Report whether it succeeded, how long processing took, and the displayed error if it failed. Do not share signed URLs or credentials.
-7. If it fails or times out, check browser Downloads first, close remaining menus, and rescan before an intentional retry. A timeout does not prove no file was created. No automatic retry or next-image processing occurs in Phase 2.
+## Download attribution
 
-**Download attribution limits:** Chrome's Downloads API does not expose the initiating tab ID. The monitor accepts only downloads starting in the armed 120-second interval with a Flow source URL (including a Flow blob URL) or exact Flow referrer. Multiple matching downloads fail as ambiguous. A CDN download with no Flow source/referrer remains unmatched and times out; it is not guessed from an arbitrary latest download. Avoid all other Flow downloads during this test: a lone unrelated Flow download in the same interval cannot be distinguished by this API. Attribution and filename/MIME behavior still need real-browser validation.
+Chrome Downloads API supplies no initiating tab ID. The worker correlates the armed start-time window with an exact Flow source/referrer, including Flow blob URLs, and permits one active watch across extension tabs. Multiple matching downloads fail as ambiguous. CDN downloads lacking a Flow source/referrer remain unmatched and time out; unrelated latest files are never guessed. A lone unrelated Flow download in the same interval cannot be distinguished, so avoid other Flow downloads during processing.
 
-Cancellation stops further UI actions and tracking, and leaves already-started browser downloads intact. Reload/navigation does not resume or repeat the action; check Downloads before a new attempt. Worker restart can recover its session watch and missed download creation via browser search; closing the captured tab clears the watch. After reload, an orphaned watch can block a new attempt until its 120-second expiry. Declining/revoking Downloads access leaves the inspector usable.
+The worker stores sanitized ID, filename, state, bytes, and times in trusted session storage. Source URLs/referrers are checked transiently, never stored/exported/logged. Worker restart can recover its watch and missed creation via browser search. After page reload an orphaned watch can block a new operation until its 120-second expiry. Queue/history remain in isolated page memory and are lost on reload.
 
-## Phase 1 live inspection procedure
-
-Version **0.1.1** fixes stale popup/side-panel exports and makes starting capture the primary action. Reload the extension and refresh Flow before this procedure; the UI detects older injected scripts. This UI change does not add download automation.
-
-1. Expand **Developer tools · DOM inspector**. Start with one generated image visible and all menus closed. Click **Take DOM snapshot** if you want a baseline preview; opening the extension already attaches to the live page session.
-2. Enable debug logging if wanted, then click **Start menu capture** and confirm the status says **Observing DOM changes**. Page DevTools will show `[FLOW-BULK][DISCOVERY]`, `[FLOW-BULK][INSPECTION]`, and errors prefixed `[FLOW-BULK][ERROR]`.
-3. Open the image's More menu manually. Wait at least half a second for a snapshot.
-4. Open/hover **Download** as required by the actual UI. Wait for **2K Upscaled** to be visible. The inspector does not operate these controls.
-5. Inspect both enabled and unavailable/processing states where present. Manually scroll the asset collection to expose more images and capture possible scroll-region changes.
-6. Click **Stop and copy JSON** (or **Stop observing**, then **Copy JSON**). Review identifiers, then supply the JSON to development. The inspector records only recognized workflow labels, structural metadata, and allowlisted attributes; it excludes full HTML, project URLs, media URLs, prompts, cookies, and tokens. Arbitrary identifier values are not guaranteed free of sensitive information.
-7. Separately perform one manual 2K download and note whether it starts immediately or after processing, expected filename/format, approximate timing, and success/failure UI. Do not share signed download URLs or session credentials.
-
-Keep the popup open while capturing, or use **Open download side panel** for a persistent view. Prefer the side panel for this procedure so its **Observing DOM changes** status remains visible. Closing the extension UI does not stop the bounded page observer. Observation stops on page unload or after ten minutes. Reopening the popup or panel attaches to the current session; both views synchronize even when their previous state was idle. Copy fetches live bound-tab state and refuses an unstarted capture. Commands remain attached to the captured tab rather than following an unrelated active tab. **Clear capture history** is unavailable while observing. After observation stops, it resets all pinned/rolling captures to a fresh baseline and requires starting capture again. The export also records observation start/stop/error metadata. Menu and manual-target contexts are collected before image sampling. Manual image context and viewport images are prioritized; viewport geometry is read only to rank diagnostic candidates, never to click coordinates. The format-v2 JSON export retains the baseline and first recognized Download/2K snapshots even when rolling history overflows, and records relevant trusted manual clicks/hover/focus without changing them. See [the evidence handoff](docs/DIAGNOSTICS.md) for bounds, format, and the offline review command.
-
-## Architecture and selectors
+## Architecture
 
 ```text
-src/background/service-worker.ts   Debug preference and download monitor registration
-src/background/download-monitor.ts Serialized browser events and session watch
-src/background/download-policy.ts  Source/time correlation and sanitized records
-src/content/flow-adapter.ts        Evidence-based single-image DOM operations
-src/content/single-automation.ts   Bounded one-image state machine
-src/popup/SingleImagePanel.tsx      Explicit one-image selection/test UI
-src/shared/automation-types.ts     One-image/download message and state models
-src/shared/automation-client.ts    Bound-tab single-image command transport
-src/shared/operation-report.ts     Sanitized current-operation evidence export
-src/content/content.ts            Scoped, idempotent injection and observer/message lifecycle
-src/content/selectors.ts          All generic semantic diagnostic probes and bounds
-src/content/flow-dom.ts            Name/state/structure evidence and candidate relationships
-src/content/evidence-collector.ts  Bounded parent/ARIA context graph
-src/content/asset-detector.ts      Image candidates; session-only identities
-src/content/inspector.ts           Bounded serializable report
-src/shared/types.ts               Typed version-2 diagnostic schema and messages
-src/shared/capture-history.ts     Rolling capture history and retained evidence
-src/shared/capture.ts             Deduplicated export with snapshot references
-src/shared/evidence-review.ts     Offline shape/reference/coverage validation
-src/shared/client.ts              Active-tab validation, injection, and messaging
-src/popup/App.tsx                  Shared inspector UI
-src/sidepanel/main.tsx             Persistent side panel entry
-public/manifest.json               MV3 permissions and entry points
-scripts/verify-build.mjs           Bundle/manifest/read-only invariants
-scripts/review-evidence.mjs        Review user-supplied real JSON without executing it
-scripts/browser-smoke.mjs          Real local Chromium extension smoke test
+src/content/asset-discovery.ts      Bounded collection scan, ID deduplication, reacquisition
+src/content/bulk-automation.ts      Bulk lifecycle, current item, pause/cancel and real status
+src/content/sequential-queue.ts     Generic concurrency-one executor with capped retries
+src/content/image-download.ts       One-image UI sequence and browser completion wait
+src/content/flow-adapter.ts         Flow DOM operations and menu ownership
+src/content/selectors.ts            Centralized observed selectors and bounds
+src/background/download-monitor.ts Serialized browser events and trusted session watch
+src/background/download-policy.ts  Source/time attribution and sanitized records
+src/popup/BulkPanel.tsx              Primary bulk controls, progress/settings/results
+src/shared/bulk-types.ts             Asset/queue/message contracts
+src/shared/automation-client.ts      Bound-tab exact-host transport
+src/content/content.ts              Guarded injection and message lifecycle
+src/content/inspector.ts             Read-only developer diagnostics
+public/manifest.json                 MV3 entries and minimal permissions
+scripts/verify-build.mjs             Manifest/bundle/security invariants
 ```
 
-The latest real capture establishes image custom-element ancestry, `data-media-id` hints, visible/hidden image-associated More controls, linked menus, Download descendant labels, 2K menu item, and recorded manual interactions. Phase 2 is implemented from that evidence, but a successful live single-image test is still required before bulk work. See [observed DOM findings](docs/OBSERVED-DOM.md). Probes use `img`, semantic buttons/menu items, menus/listboxes, and names such as `More`, `Download`, and `2K Upscaled`. Generic inspector probes collect evidence; the separate `FLOW` selector contract documents the actual observed Phase 2 structure. They inspect only rendered light DOM; virtualized assets, shadow DOM, iframe content, icon-only controls without labels, and localized menu labels may be missed. The accessible-name helper is a diagnostic approximation, not a full accessibility-tree implementation.
+The old single-image engine remains internal development code; the product UI uses the bulk engine. See [diagnostic format](docs/DIAGNOSTICS.md) and [observed DOM findings](docs/OBSERVED-DOM.md).
 
-Update `src/content/selectors.ts` after obtaining evidence. Verify that a candidate is a generated image rather than a decorative thumbnail, that its More control is associated with that exact asset, and that menu portals contain the expected Download and quality items. Do not scatter selectors through the automation engine or use screen coordinates. Validate the changed diagnostic logic, rebuild, and rerun the live capture. Do not create sample/mock Flow DOM as a substitute for the real capture.
-
-## Permissions
+## Permissions and privacy
 
 | Permission | Purpose |
 | --- | --- |
-| `activeTab` | Temporary access to the current tab after the user clicks the extension. No persistent host permission. |
-| `scripting` | Injects the exact-host-guarded inspector and explicit single-image action after a user gesture. |
-| `storage` | Saves debug preference locally and an active sanitized browser-download watch in trusted session storage. |
-| `sidePanel` | Provides a persistent inspection UI beside Flow. |
+| `activeTab` | Temporary access from the toolbar click; exact HTTPS flow.google.com injection only. |
+| `scripting` | Injects page automation/inspector after the user action. |
+| `storage` | Debug/retry preferences and trusted active download-watch state. |
+| `sidePanel` | Persistent controls beside the project. |
+| Optional `downloads` | Requested on Start/Retry; real lifecycle events and matching record search. |
 
-The optional `downloads` permission is requested only when the user explicitly starts a single-image test; it reads browser download lifecycle events and matching records. Required permissions remain unchanged. There is no `tabs` permission, blanket host permission, clipboard permission, or persistent Flow host permission. Clipboard copy is invoked directly from a user click; JSON remains selectable if the browser denies clipboard access. Download API records are filtered by source and time and sanitized before storage; URLs/referrers are never exported or logged. Chrome keeps normal filenames, save prompts, and duplicate-file behavior; renaming and ZIP export are deferred.
+No `tabs` permission, persistent/blanket host access, clipboard permission, private API credential access, or external uploads. No cookies/tokens are read or authentication/access/upgrade controls bypassed. Bulk results omit media IDs, URLs, and full local paths; developer DOM captures may contain identifier values. Review them before sharing and never commit real captures.
 
-## Remaining phases and required evidence
+## Developer inspector and selector maintenance
 
-Phase 2 is intentionally one image per explicit click. A real-browser success must establish correct image ownership, menu transitions, processing delay, download attribution, file completion, and 2K output before implementing a queue. No one-image live success is claimed yet.
+Finish/cancel bulk processing, expand Developer tools, click Start menu capture, and manually expose a representative More → Download → 2K sequence, leaving menus visible at least half a second. Stop and copy JSON. This diagnostic procedure is needed only for changed/missing UI behavior; the observer stops after ten minutes.
 
-Later work: sequential queue with progress/retries/pause/resume, complete lazy-loaded discovery, stable IDs/reacquisition across rerenders, file naming, settings, completion summary, and optional ZIP. These remain unimplemented. No automatic project scrolling or full asset count is claimed.
+```sh
+npm run inspect:evidence -- /path/to/real-flow-capture.json
+```
+
+The offline validator reads untrusted JSON without executing selectors/HTML or echoing identifiers. Valid format does not establish actual download success. Do not share signed URLs, tokens, prompts, or image data.
+
+Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real evidence. Keep raw selectors out of queue code. Build/test and rerun an actual Flow project; do not invent Angular classes, coordinates, APIs, or fake Flow DOM.
 
 ## Troubleshooting
 
-- **Open a Flow project:** ensure the active tab is exactly `https://flow.google.com/…`, then click the toolbar icon again. A redirect, reload, or tab switch may require a fresh `activeTab` grant.
-- **No candidates:** images may not be rendered as `img`, not yet loaded, hidden, or in a shadow root/iframe. Capture a report and inspect the actual DOM; zero candidates does not establish an empty project.
-- **No More/Download/2K:** manually open menus; icon-only, localized, or changed names need inspection. A closed menu can correctly yield zero controls.
-- **Unexpected count:** candidates are not verified assets. Inspect container relationships, duplicate thumbnails, and virtualization before implementing discovery.
-- **Older inspector / stale capture:** reload the extension and refresh Flow; then use **Start menu capture**. The panel must say **Observing DOM changes** before you open image menus. Do not clear history before copying.
-- **Scan stale after rebuilding:** reload the extension and Flow tab, then inspect again.
-- **Copy denied:** expand **Diagnostic JSON**, select its text, and copy manually.
-- **Observation ended:** restart it; observation has a deliberate ten-minute limit.
+- **Old inspector/chooser:** load 0.3.0 dist, reload extension, refresh Flow, and confirm the header version.
+- **Collection not found/ambiguous:** open an image project on exact Flow and capture scroll ancestry; do not guess a body/window scroller.
+- **Discovery limit/timeout:** list is incomplete; inspect mounting/lazy loading and refresh. No partial list is claimed complete.
+- **Menu/quality failure:** Copy bulk result shows image index, actual stage, attempts, and reason; capture the changed DOM if needed.
+- **Attribution uncertainty:** check Downloads/processing state before Retry Failed; avoid simultaneous Flow downloads.
+- **Pause requested:** current operation finishes or reaches its timeout before PAUSED; Resume preserves completed work.
+- **Reload/navigation:** automation stopped; check saved files before intentionally starting again.
+- **Clipboard denied:** select the Bulk result JSON and copy manually.
 
 ## Validation status
 
-See `TESTING.md` for commands, actual results, and the outstanding live Flow checklist. Local unit tests use explicitly synthetic DOM fixtures to test diagnostic behavior; they are not production mock assets and do not prove compatibility with Flow. No live Phase 2 success or authenticated browser download completion is claimed. Build/test results validate local code and API/state handling only.
+TypeScript, production build, dependency installation, and **61 local tests** pass. Tests verify queue/API/extension-UI transport behavior, not live Flow selectors, virtualization, actual 2K files, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.

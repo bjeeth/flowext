@@ -1,6 +1,6 @@
 # Real Flow evidence handoff
 
-Run the exact seven-step **Phase 1 live inspection procedure** in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Use **Start menu capture** before opening menus, then **Stop and copy JSON** afterward. These inspector actions perform no automatic click, network call, or download monitoring. The separate Phase 2 button is an explicit download operation.
+Run the **Developer inspector and selector maintenance** procedure in README.md on your authenticated Flow project. Open More, then Download, then expose 2K Upscaled manually. Use **Start menu capture** before opening menus, then **Stop and copy JSON** afterward. These inspector actions perform no automatic click, network call, or download monitoring. The separate Download All as 2K button is an explicit bulk operation.
 
 Reload the extension AND the Flow page after installing this updated build. Older injected content scripts remain alive until the page reloads. This build emits `formatVersion: 2` and `schemaVersion: 2`; legacy v1 reports are not padded with inferred evidence.
 
@@ -59,4 +59,4 @@ Keep the manual 2K download result from README step 7 separate: whether processi
 
 ## Phase 2 gate
 
-Only actual supplied evidence may establish selectors and menu interaction semantics. If any required action or relationship remains ambiguous, improve the inspector or request a focused recapture. Do not fill gaps with private APIs, sample Flow DOM, assumed classes, coordinates, or simulated progress. Phase 2 will require one real image to complete its actual browser download before bulk work starts. Version 0.2.0 implements only a single-image action using the supplied evidence. Follow README's live test before proceeding to bulk.
+Only actual supplied evidence may establish selectors and menu interaction semantics. If any required action or relationship remains ambiguous, improve the inspector or request a focused recapture. Do not fill gaps with private APIs, sample Flow DOM, assumed classes, coordinates, or simulated progress. Live acceptance starts by verifying one real image and actual browser completion, then wider collections. Version 0.3.0 implements automatic bulk processing at the user’s request. DOM contracts are evidenced; authenticated single-image/bulk success remains unverified. Follow README’s live bulk procedure and verify the first actual file.

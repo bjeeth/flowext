@@ -43,6 +43,18 @@ export class FlowDOMAdapter {
     }
     return result;
   }
+  bindImage(image: HTMLImageElement): string {
+    const mediaId = image.getAttribute('data-media-id');
+    if (!mediaId || !this.doc.contains(image)) throw new Error('Asset could not be identified.');
+    const key = nodeId(image); this.choices.clear(); this.choices.set(key, { image, mediaId }); return key;
+  }
+  async closeMenus(signal: AbortSignal) {
+    const expanded = Array.from(this.doc.querySelectorAll<HTMLElement>(FLOW.more)).filter(button => button.getAttribute('aria-expanded') === 'true');
+    if (!this.visibleMenus().length) return;
+    if (expanded.length !== 1) throw new Error('Cannot safely close an unrelated or ambiguous Flow menu.');
+    this.enabled(expanded[0], false); signal.throwIfAborted(); expanded[0].click();
+    await boundedWait(() => this.visibleMenus().length === 0 ? true : undefined, TIMEOUTS.menu, signal, 'Flow menus did not close.');
+  }
   private image(key: string): HTMLImageElement {
     const entry = this.choices.get(key);
     if (!entry || !this.doc.contains(entry.image) || entry.image.getAttribute('data-media-id') !== entry.mediaId || !isVisible(entry.image)) throw new Error('Image changed or left the rendered page. Rescan visible images before trying again.');
@@ -86,6 +98,14 @@ export class FlowDOMAdapter {
   select2KDownload(menu: HTMLElement, signal: AbortSignal) {
     const item = this.uniqueItem(menu, '2k');
     this.enabled(item); signal.throwIfAborted(); item.click();
+  }
+  async waitFor2KReady(menu: HTMLElement, signal: AbortSignal) {
+    await boundedWait(() => {
+      if (!menu.isConnected || !isVisible(menu)) throw new Error('The quality menu disappeared before 2K became available.');
+      const item = this.findItem(menu, '2k'); if (!item) return;
+      const state = describe(item).state;
+      return !state.disabled && !state.busy ? true : undefined;
+    }, TIMEOUTS.download, signal, '2K Upscaled remained disabled or processing for 120 seconds.');
   }
   private visibleMenus(): HTMLElement[] { return Array.from(this.doc.querySelectorAll<HTMLElement>(FLOW.menu)).filter(isVisible); }
   private uniqueItem(menu: HTMLElement, kind: 'download' | '2k'): HTMLElement {

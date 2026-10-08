@@ -11,6 +11,7 @@ export class SingleImageAutomation {
   private debug = false;
   private active = false;
   constructor(private adapter: FlowDOMAdapter, private url: () => string) {}
+  isActive() { return this.active; }
   session(): SingleSession { return { protocol: 1, assets: [...this.assets], state: { ...this.state,
     ...(this.state.steps ? { steps: this.state.steps.map(step => ({ ...step })) } : {}) } }; }
   refresh(): SingleSession {

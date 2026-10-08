@@ -1,0 +1,18 @@
+import type { DownloadRecord, SingleStage } from './automation-types';
+export type AssetStatus = 'discovered' | 'queued' | 'processing' | 'downloading' | 'completed' | 'failed' | 'skipped';
+export interface FlowAsset {
+  id: string; index: number; label: string; status: AssetStatus; attempts: number;
+  scrollTop: number; error?: string; download?: DownloadRecord;
+}
+export type BulkStage = 'IDLE' | 'DISCOVERING' | 'READY' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'ERROR';
+export interface BulkSession {
+  protocol: 1; stage: BulkStage; assets: FlowAsset[]; currentId?: string; currentStage?: SingleStage;
+  pauseRequested: boolean; active: boolean; discoveryComplete: boolean;
+  startedAt?: string; endedAt?: string; error?: string;
+  settings: { retries: number; debug: boolean };
+}
+export interface BulkCommand {
+  type: 'FLOW_BULK'; action: 'get' | 'start' | 'discover' | 'pause' | 'resume' | 'cancel' | 'retry';
+  debug?: boolean; retries?: number;
+}
+export type BulkReply = { ok: true; bulk: BulkSession } | { ok: false; error: string };

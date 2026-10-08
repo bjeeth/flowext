@@ -3,7 +3,7 @@ import { exportCapture } from '../shared/capture';
 import { inspectTab, liveMenuCapture } from '../shared/client';
 import type { InspectorCommand, InspectorSession } from '../shared/types';
 import './styles.css';
-import { SingleImagePanel } from './SingleImagePanel';
+import { BulkPanel } from './BulkPanel';
 
 export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const [session, setSession] = useState<InspectorSession>();
@@ -19,6 +19,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   const buildVersion = chrome.runtime.getManifest().version;
   const mounted = useRef(true);
   const commandVersion = useRef(0);
+  const hasBulk = session?.bulk?.protocol === 1;
   useEffect(() => {
     mounted.current = true;
     void chrome.windows.getCurrent().then(window => { if (mounted.current) setWindowId(window.id); })
@@ -46,16 +47,18 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
       inFlight = true;
       const version = commandVersion.current;
       // Poll even when this surface last saw an idle session: the other surface may start capture.
-      void chrome.tabs.sendMessage(tabId, { type: 'FLOW_INSPECTOR', action: 'get' }).then(reply => {
+      const lightweight = hasBulk && !inspectorOpen;
+      void chrome.tabs.sendMessage(tabId, { type: lightweight ? 'FLOW_BULK' : 'FLOW_INSPECTOR', action: 'get' }).then(reply => {
         if (disposed || !mounted.current || version !== commandVersion.current) return;
-        if (reply?.ok) setSession(reply.session);
+        if (reply?.ok && lightweight) setSession(previous => previous ? { ...previous, bulk: reply.bulk } : previous);
+        else if (reply?.ok) setSession(reply.session);
         else setError(reply?.error ?? 'Flow inspector did not respond. Reopen it on the Flow tab.');
       }).catch(() => {
         if (!disposed && mounted.current && version === commandVersion.current) { setSession(undefined); setTabId(undefined); setError('Flow tab reloaded or closed. Reopen the extension on the Flow tab.'); }
       }).finally(() => { inFlight = false; });
     }, 1000);
     return () => { disposed = true; window.clearInterval(timer); };
-  }, [tabId]);
+  }, [tabId, inspectorOpen, hasBulk]);
 
   async function run(action: InspectorCommand['action']) {
     commandVersion.current++;
@@ -107,12 +110,12 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   }
   const report = session?.latest;
   return <main>
-    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>2K image downloads · v{buildVersion}</p></div></header>
-    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : session?.single ? 'Flow connected' : session ? 'Refresh Flow to activate download automation' : 'Open a Flow project to begin.'}</div>
-    {session && !session.single && <p className="error" role="alert">This tab still has inspector {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. Download automation is unavailable in the old page script.</p>}
+    <header><div className="brand-mark" aria-hidden="true">F</div><div><h1>Flow Bulk Downloader</h1><p>Bulk 2K downloads · v{buildVersion}</p></div></header>
+    <div className="status project-status" role="status">{!settingsReady ? 'Connecting to Flow…' : session?.bulk ? 'Flow connected' : session ? 'Refresh Flow to activate bulk automation' : 'Open a Flow project to begin.'}</div>
+    {session && !session.bulk && <p className="error" role="alert">This tab still has page script {session.buildVersion ?? 'unknown'} injected. Refresh the Flow page and reopen the extension to activate v{buildVersion}. Bulk automation is unavailable in the old page script.</p>}
     {error && <p className="error" role="alert">{error}</p>}
-    {session?.single && tabId !== undefined && <SingleImagePanel tabId={tabId} session={session.single} debug={debug} rescan={() => void run('scan')} buildVersion={buildVersion} contentVersion={session.buildVersion} />}
-    {settingsReady && (!session || !session.single) && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
+    {session?.bulk && tabId !== undefined && <BulkPanel tabId={tabId} session={session.bulk} debug={debug} buildVersion={buildVersion} onUpdate={bulk => setSession(previous => previous ? { ...previous, bulk } : previous)} />}
+    {settingsReady && (!session || !session.bulk) && <button className="wide" disabled={busy} onClick={() => void run('get')}>Reconnect to Flow</button>}
     {!sidepanel && <button className="wide" disabled={windowId === undefined} onClick={() => void openPanel()}>Open download side panel</button>}
     <label className="setting"><span>Debug console logging</span><input type="checkbox" checked={debug} disabled={!settingsReady} onChange={event => void toggleDebug(event.target.checked)} /></label>
     <details className="developer-tools" onToggle={event => setInspectorOpen(event.currentTarget.open)}><summary>Developer tools · DOM inspector{session?.observing ? ' · recording' : ''}</summary>
@@ -149,6 +152,6 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
     </>}
     </>}
     </details>
-    <footer>Downloads run inside the Flow page and continue if you close this panel. Bulk processing awaits a successful real single-image test.</footer>
+    <footer>The queue runs inside Flow and continues if you close this panel. Keep the project tab open until processing finishes.</footer>
   </main>;
 }

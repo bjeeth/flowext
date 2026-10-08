@@ -6,6 +6,8 @@ import type { InspectorCommand, InspectorReply, InspectorSession } from '../shar
 import { FlowDOMAdapter } from './flow-adapter';
 import { SingleImageAutomation } from './single-automation';
 import type { AutomationCommand, AutomationReply } from '../shared/automation-types';
+import { BulkAutomation } from './bulk-automation';
+import type { BulkCommand, BulkReply } from '../shared/bulk-types';
 
 const global = globalThis as typeof globalThis & { __flowBulkInspectorInstalled?: boolean };
 if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
@@ -24,13 +26,36 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
   let latest = inspectFlow(document, location.href);
   let capture = new CaptureHistory(latest);
   const single = new SingleImageAutomation(new FlowDOMAdapter(document), () => location.href);
+  const bulk = new BulkAutomation(document, new FlowDOMAdapter(document), () => location.href);
   single.refresh();
+  chrome.runtime.onMessage.addListener((message: BulkCommand, sender, respond: (r: BulkReply) => void) => {
+    if (message?.type !== 'FLOW_BULK') return;
+    if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')) || !isFlowPage(location.href)) return;
+    try {
+      let result;
+      switch (message.action) {
+        case 'get': result = bulk.session(); break;
+        case 'start': case 'discover':
+          if (single.isActive()) throw new Error('A developer single-image operation is already active.');
+          stop(); result = bulk.start(message.action === 'start', message.retries ?? 2, message.debug === true); break;
+        case 'pause': result = bulk.pause(); break;
+        case 'resume': result = bulk.resume(); break;
+        case 'cancel': result = bulk.cancel(); break;
+        case 'retry':
+          if (single.isActive()) throw new Error('A developer single-image operation is already active.');
+          stop(); result = bulk.retry(); break;
+        default: throw new Error('Unknown bulk command.');
+      }
+      respond({ ok: true, bulk: result });
+    } catch (error) { respond({ ok: false, error: error instanceof Error ? error.message : 'Bulk operation failed.' }); }
+  });
   chrome.runtime.onMessage.addListener((message: AutomationCommand, sender, respond: (r: AutomationReply) => void) => {
     if (message?.type !== 'FLOW_SINGLE') return;
     // Accept only our own popup/sidepanel, never another page content script.
     if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')) || !isFlowPage(location.href)) return;
     try {
       if (message.action === 'start' && typeof message.assetKey === 'string') {
+        if (bulk.session().active) throw new Error('A bulk operation is already active.');
         stop(); respond({ ok: true, single: single.start(message.assetKey, message.debug === true) });
       } else if (message.action === 'cancel') respond({ ok: true, single: single.cancel() });
       else respond({ ok: false, error: 'Invalid single-image command.' });
@@ -97,7 +122,7 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     document.removeEventListener('load', schedule, true);
     for (const type of ['click', 'pointerover', 'focusin']) document.removeEventListener(type, onInteraction, true);
   };
-  const session = (): InspectorSession => ({ single: single.session(), captureProtocol: 1, buildVersion: installedBuildVersion, observing, debug, latest,
+  const session = (): InspectorSession => ({ bulk: bulk.session(), single: single.session(), captureProtocol: 1, buildVersion: installedBuildVersion, observing, debug, latest,
     observation: { active: observing, startedAt: observationStartedAt, stoppedAt: observationStoppedAt, lastError: observationError },
     sessionId: capture.sessionId,
     history: [...capture.history], historyDropped: capture.historyDropped, checkpoints: capture.checkpoints,
@@ -108,9 +133,10 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
     try {
       if (typeof message.debug === 'boolean') debug = message.debug;
       switch (message.action) {
-        case 'get': single.refresh(); break;
+        case 'get': if (!bulk.session().active) single.refresh(); break;
         case 'scan': scan(); single.refresh(); break;
         case 'observe':
+          if (bulk.session().active) throw new Error('Finish or cancel bulk processing before starting manual inspection.');
           stop(); scan(); observing = true; observationStartedAt = new Date().toISOString(); observationStoppedAt = null;
           observer = new MutationObserver(schedule);
           observer.observe(document.documentElement, {
@@ -136,5 +162,5 @@ if (isFlowPage(location.href) && !global.__flowBulkInspectorInstalled) {
       sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Inspector scan failed.' });
     }
   });
-  window.addEventListener('pagehide', () => { stop(); single.cancel(); }, { once: true });
+  window.addEventListener('pagehide', () => { stop(); single.cancel(); bulk.cancel(); }, { once: true });
 }

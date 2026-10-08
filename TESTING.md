@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Recorded cloud results: TypeScript and production build passed; 54/54 unit tests passed (including existing diagnostic tests and new input-validation/capture-bookkeeping tests); dependency installation passed using the existing writable `/workspace/.npm-cache` with lockfile integrity verification. Chromium smoke was attempted but blocked by a managed `ExtensionInstallBlocklist=["*"]` policy; browser loading, real popup/side-panel interactions, and authenticated Flow behavior have not been validated. The policy was left unchanged.
+Current 0.3.0 results: dependency installation, TypeScript/production build, and 61/61 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image or bulk success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
 
 ## Local checks
 
@@ -57,4 +57,12 @@ The managed Chromium extension blocklist is still present. The optional smoke te
 
 The default surface now shows download controls; inspector controls render only after expanding Developer tools. The real extension UI transport test verifies a legacy page script produces an explicit refresh warning and no silent developer-tool fallback, and a current automation session displays its real download button outside the inspector. No mock Flow DOM/assets are added. Operation-report tests verify that asset references, unexpected fields, source URLs, and local username paths are omitted while actual stage/error/download state remains present. The operation engine records real state-transition times, not simulated progress. A 54-test pass and production build pass are required for this release.
 
-The user's Edge feedback was that only the inspector appeared and no download button was visible. No actual automated single-image success has been reported, so complete discovery, queue, pause/resume, retry, and bulk UI remain gated. The cloud has no authenticated user-browser connector; its managed extension policy still prevents live verification. Follow README's current single-image procedure, then copy the operation result and verify the actual file/dimensions.
+Historical 0.2.1 feedback: only the inspector appeared and no download button was visible; no automated single-image success was reported. The current 0.3.0 implements bulk at the user’s subsequent explicit request. The cloud still has no authenticated user-browser connector and managed extension policy prevents live acceptance. Follow the current bulk procedure and verify actual files/dimensions.
+
+## Version 0.3.0 bulk validation
+
+Generic numbered-job tests (no mock Flow DOM/assets) verify concurrency one, awaiting each job, capped retries with failure continuation, pause/resume without replay, cancellation preserving completed work, and stopping on uncertain attribution. Extension UI tests with empty transport metadata verify the bulk button requests optional access and dispatches FLOW_BULK/start; denial starts nothing. The upgraded panel test verifies no image chooser and primary bulk controls outside Developer tools. Production code simulates no assets, downloads, or progress.
+
+Follow README's live bulk procedure. Verify 1, 5, 10, and 50+ images; actual scroll-container discovery; exclusion of logos/folder thumbnails; deduplication; lazy/virtualized reacquisition; automatic menus/2K; completion before the next image; real counts/files/dimensions; interrupted failure/retry/continue; uncertain attribution/timeout stopping; pause/resume/cancel; page reload/navigation; popup closure/reopen; worker restart; slow loading; disabled/missing 2K; changed DOM. All authenticated checks remain unrun.
+
+The latest 0.2.1 inspector capture is loading/scroll evidence, not an operation result. This release implements the explicitly requested bulk workflow while keeping implementation/local validation distinct from actual browser success.

@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Flow Bulk Downloader",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "minimum_chrome_version": "116",
-  "description": "Evidence-based single-image Flow 2K download validation and read-only DOM inspection.",
+  "description": "Automatically discover Flow project images and download them sequentially as 2K through the normal UI.",
   "optional_permissions": ["downloads"],
   "permissions": [
     "activeTab",

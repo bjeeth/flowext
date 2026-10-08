@@ -40,6 +40,8 @@ export const FLOW = {
   menu: '[role="menu"]',
   item: 'button[role="menuitem"]',
   downloadContext: 'flow-image-context-menu-items',
+  collection: 'flow-project-page [cdkvirtualscrollingelement]',
 } as const;
 
 export const TIMEOUTS = { menu: 5000, download: 120000, poll: 500 } as const;
+export const DISCOVERY = { timeout: 120000, settle: 700, bottomWait: 1200, stableRounds: 4, maxSteps: 1000, maxAssets: 10000, retries: 2 } as const;

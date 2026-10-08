@@ -38,7 +38,7 @@ try {
   await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
   await page.getByRole('heading', { name: 'Flow Bulk Downloader', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Open download side panel' }).count(), 0);
-  assert.equal(await page.getByRole('button', { name: /download all/i }).count(), 0, 'Inspector must not expose fake download controls');
+  assert.equal(await page.getByRole('button', { name: /download all/i }).count(), 0, 'Bulk controls require a connected, exact-host Flow content script');
   assert.deepEqual(errors, []);
   console.log('Chromium smoke passed: MV3 worker loaded, popup and side panel rendered, unrelated-page inspection refused, debug preference persisted, no JS errors.');
   console.log('No authenticated Flow page or download automation was tested.');
