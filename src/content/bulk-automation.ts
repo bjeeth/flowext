@@ -1,3 +1,4 @@
+import { isDownloadQuality, type DownloadQuality } from '../shared/download-quality';
 import { FlowDOMAdapter, FlowControlsUnavailable } from './flow-adapter';
 import { discoverAssets, reacquireAsset, delay, selectedAssets } from './asset-discovery';
 import { DownloadFailure, downloadImage } from './image-download';
@@ -8,12 +9,13 @@ import { sequentialQueue } from './sequential-queue';
 import type { DownloadScope } from '../shared/selection-types';
 
 export class BulkAutomation {
-  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
+  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
   private abort?: AbortController;
   private initialUrl = '';
   constructor(private doc: Document, private adapter: FlowDOMAdapter, private url: () => string) {}
   session(): BulkSession { return structuredClone(this.value); }
-  start(download: boolean, retries: number, debug: boolean, folder = '', scope: DownloadScope = 'all'): BulkSession {
+  start(download: boolean, retries: number, debug: boolean, folder = '', scope: DownloadScope = 'all', quality: DownloadQuality = '2k'): BulkSession {
+    if (!isDownloadQuality(quality)) throw new Error('Choose 1K, 2K, or 4K.');
     if (scope !== 'all' && scope !== 'selected') throw new Error('Choose All images or Selected images.');
     if (this.value.active) {
       if (!download && this.initialUrl === this.url() && !this.value.discoveryComplete && ['DISCOVERING', 'PAUSED'].includes(this.value.stage)) return this.session();
@@ -27,8 +29,8 @@ export class BulkAutomation {
     const reuse = scope === 'all' && this.value.settings.scope !== 'selected' && download && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
     const assets = selected ?? (reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : []);
     this.abort = new AbortController(); this.initialUrl = this.url();
-    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, discoverySupport: 2, stage: selected ? (download ? 'RUNNING' : 'READY') : reuse ? 'RUNNING' : 'DISCOVERING', assets, active: !selected || download, pauseRequested: false, discoveryComplete: reuse || !!selected,
-      startedAt: new Date().toISOString(), settings: { retries, debug, scope, ...(download ? { folder } : {}) } };
+    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: selected ? (download ? 'RUNNING' : 'READY') : reuse ? 'RUNNING' : 'DISCOVERING', assets, active: !selected || download, pauseRequested: false, discoveryComplete: reuse || !!selected,
+      startedAt: new Date().toISOString(), settings: { retries, debug, scope, quality, ...(download ? { folder } : {}) } };
     if (selected && !download) { this.finish(); return this.session(); }
     if (selected) for (const asset of assets) asset.status = 'queued';
     if (reuse || selected) void this.process(this.abort.signal).catch(error => this.fail(error, this.abort!.signal)).finally(() => this.finish());
@@ -99,7 +101,7 @@ export class BulkAutomation {
         if (stage === 'WAITING_FOR_DOWNLOAD') asset.status = 'downloading';
         if (download) asset.download = download;
         if (this.value.settings.debug) console.info('[FLOW-BULK][AUTOMATION]', asset.label, stage);
-      }, () => this.checkPage(), this.value.settings.folder);
+      }, () => this.checkPage(), this.value.settings.folder, this.value.settings.quality);
       asset.status = 'completed'; return;
     } catch (error) {
       if (signal.aborted) throw error;

@@ -116,7 +116,7 @@ export default function App({ sidepanel = false }: { sidepanel?: boolean }) {
   }
   const report = session?.latest;
   return <main data-surface={sidepanel ? 'sidepanel' : 'popup'}>
-    <header className="app-header"><div className="brand-mark"><Icon name="download" size={22} /></div><div className="brand-title"><h1>Flow Bulk Downloader</h1><p>2K image exports <span className="version">v{buildVersion}</span></p></div>
+    <header className="app-header"><div className="brand-mark"><Icon name="download" size={22} /></div><div className="brand-title"><h1>Flow Bulk Downloader</h1><p>Image exports <span className="version">v{buildVersion}</span></p></div>
       {!sidepanel && <button className="icon-button panel-launch" aria-label="Open download side panel" title="Open download side panel" disabled={windowId === undefined} onClick={() => void openPanel()}><Icon name="panel" /></button>}
     </header>
     <div className="app-content">

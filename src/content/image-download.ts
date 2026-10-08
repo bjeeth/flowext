@@ -1,3 +1,4 @@
+import type { DownloadQuality } from '../shared/download-quality';
 import { FlowDOMAdapter, timedRequest } from './flow-adapter';
 import { delay } from './asset-discovery';
 import { TIMEOUTS } from './selectors';
@@ -8,7 +9,7 @@ export class DownloadFailure extends Error {
 }
 /** Reused one-image operation; queue waits for this promise before advancing. */
 export async function downloadImage(adapter: FlowDOMAdapter, key: string, assetKey: string, signal: AbortSignal,
-  update: (stage: SingleStage, download?: DownloadRecord) => void, checkPage: () => void, folder = ''): Promise<DownloadRecord> {
+  update: (stage: SingleStage, download?: DownloadRecord) => void, checkPage: () => void, folder = '', quality: DownloadQuality = '2k'): Promise<DownloadRecord> {
   const runId = crypto.randomUUID(); let armed = false; let selected = false; let resolved = false;
   const monitor = async (action: 'arm' | 'get' | 'release') => {
     const reply = await timedRequest(chrome.runtime.sendMessage({ type: 'FLOW_DOWNLOAD', action, runId, assetKey, folder }), TIMEOUTS.menu,
@@ -19,10 +20,10 @@ export async function downloadImage(adapter: FlowDOMAdapter, key: string, assetK
   try {
     checkPage(); await adapter.closeMenus(signal);
     update('OPENING_MENU'); const menu = await adapter.openAssetMenu(key, signal); checkPage();
-    update('OPENING_DOWNLOAD_MENU'); const submenu = await adapter.openDownloadMenu(menu, signal); checkPage();
-    update('SELECTING_2K'); await adapter.waitFor2KReady(submenu, signal); checkPage();
+    update('OPENING_DOWNLOAD_MENU'); const submenu = await adapter.openDownloadMenu(menu, signal, quality); checkPage();
+    update('SELECTING_QUALITY'); await adapter.waitForQualityReady(submenu, signal, quality); checkPage();
     await monitor('arm'); armed = true; checkPage();
-    adapter.select2KDownload(submenu, signal); selected = true;
+    adapter.selectQualityDownload(submenu, signal, quality); selected = true;
     update('WAITING_FOR_DOWNLOAD'); const deadline = Date.now() + TIMEOUTS.download;
     while (Date.now() < deadline) {
       signal.throwIfAborted(); checkPage();
