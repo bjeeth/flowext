@@ -1,4 +1,4 @@
-import { FLOW, DISCOVERY, PROBES } from './selectors';
+import { FLOW, DISCOVERY, PROBES, SELECTED_TILE } from './selectors';
 import { isVisible } from './flow-dom';
 import { boundedWait } from './flow-adapter';
 import type { FlowAsset } from '../shared/bulk-types';
@@ -44,6 +44,23 @@ export function scanCollection(root: HTMLElement, assets: Map<string, FlowAsset>
     if (existing) existing.scrollTop = top;
     else assets.set(id, { id, index: assets.size + 1, label: `Image ${assets.size + 1}`, status: 'discovered', attempts: 0, scrollTop: top });
   }
+}
+/** Snapshot only rendered selections; never scan all images or change Flow selection. */
+export function selectedAssets(doc: Document): FlowAsset[] {
+  const root = collection(doc);
+  const all = new Map<string, FlowAsset>();
+  scanCollection(root, all);
+  const selected = new Set<string>();
+  for (const image of renderedImages(root)) {
+    const wrapper = image.closest(SELECTED_TILE);
+    if (!wrapper || !root.contains(wrapper) || !wrapper.classList.contains('selected')) continue;
+    if (wrapper.querySelectorAll(FLOW.image).length !== 1) throw new Error('Ambiguous selected image card. No downloads were started.');
+    const id = image.getAttribute('data-media-id')!;
+    if (selected.has(id)) throw new Error('Duplicate selected image cards. No downloads were started.');
+    selected.add(id);
+  }
+  if (!selected.size) throw new Error('No selected images are currently loaded in Flow. Select image cards in Flow first. No downloads were started.');
+  return [...all.values()].filter(asset => selected.has(asset.id)).map((asset, i) => ({ ...asset, index: i + 1, label: `Selected image ${i + 1}` }));
 }
 export async function discoverAssets(doc: Document, signal: AbortSignal, progress: (assets: FlowAsset[]) => void, checkpoint: () => Promise<void>, diagnose: (snapshot: DiscoverySnapshot) => void = () => {}) {
   const root = collection(doc); const originalTop = root.scrollTop;

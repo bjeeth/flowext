@@ -37,8 +37,7 @@ export function SelectionInspector({ tabId }: { tabId: number }) {
     finally { setBusy(false); }
   }
   return <section className="selection-inspector" aria-label="Flow multi-selection inspection">
-    <div className="selection-unavailable"><Icon name="info" /><div><strong>Selected downloads need setup</strong><p>We still need to verify how Flow marks selected images. Use All images for now.</p></div></div>
-    <details className="selection-guide"><summary>Help enable selected downloads</summary>
+    <details className="selection-guide"><summary>Selection diagnostics</summary>
       <p className="hint">Use the side panel and keep the same cards visible. Each capture only reads the page; it does not download anything.</p>
       <ol className="capture-steps">{([
         { checkpoint: 'baseline', title: 'Clear the selection', detail: 'Deselect all images in Flow.', button: 'Capture baseline' },
