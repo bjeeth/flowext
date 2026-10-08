@@ -33,6 +33,7 @@ export class BulkAutomation {
   cancel() { this.abort?.abort(new Error('Bulk operation cancelled. Existing browser downloads and files are preserved.')); return this.session(); }
   retry(): BulkSession {
     if (this.value.active) throw new Error('Finish or cancel the current queue first.');
+    if (this.initialUrl !== this.url() || !isFlowPage(this.url())) throw new Error('Flow project changed. Refresh the image collection before retrying.');
     if (!this.value.discoveryComplete) throw new Error('Complete asset discovery before retrying.');
     const failed = this.value.assets.filter(asset => asset.status === 'failed');
     if (!failed.length) throw new Error('There are no failed images to retry.');

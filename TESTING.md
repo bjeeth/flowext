@@ -1,6 +1,6 @@
 # Validation and live acceptance checklist
 
-Current 0.3.0 results: dependency installation, TypeScript/production build, and 61/61 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image or bulk success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
+Current 0.3.0 results: dependency installation, TypeScript/production build, and 61/62 local tests passed. Real captures establish the card/menu and project scroll contracts. No authenticated single-image or bulk success is claimed. Managed Chromium ExtensionInstallBlocklist=["*"] still blocks optional smoke testing; policy is unchanged.
 
 ## Local checks
 

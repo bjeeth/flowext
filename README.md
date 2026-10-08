@@ -130,4 +130,4 @@ Update `FLOW`, `PROBES`, and bounds in `src/content/selectors.ts` only from real
 
 ## Validation status
 
-TypeScript, production build, dependency installation, and **61 local tests** pass. Tests verify queue/API/extension-UI transport behavior, not live Flow selectors, virtualization, actual 2K files, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
+TypeScript, production build, dependency installation, and **62 local tests** pass. Tests verify queue/API/extension-UI transport behavior, not live Flow selectors, virtualization, actual 2K files, or unattended saves. Authenticated Chrome/Edge acceptance for 1, 5, 10, and 50+ images remains required. See [TESTING.md](TESTING.md). No production-readiness claim is made.
