@@ -1,3 +1,4 @@
+import { sameProject } from '../shared/project-location';
 import { isDownloadQuality, type DownloadQuality } from '../shared/download-quality';
 import { FlowDOMAdapter, FlowControlsUnavailable } from './flow-adapter';
 import { discoverAssets, reacquireAsset, delay, selectedAssets } from './asset-discovery';
@@ -7,6 +8,8 @@ import { isFlowPage } from './flow-dom';
 import type { BulkSession, FlowAsset } from '../shared/bulk-types';
 import { sequentialQueue } from './sequential-queue';
 import type { DownloadScope } from '../shared/selection-types';
+
+class ProjectChanged extends Error {}
 
 export class BulkAutomation {
   private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
@@ -18,7 +21,7 @@ export class BulkAutomation {
     if (!isDownloadQuality(quality)) throw new Error('Choose 1K, 2K, or 4K.');
     if (scope !== 'all' && scope !== 'selected') throw new Error('Choose All images or Selected images.');
     if (this.value.active) {
-      if (!download && this.initialUrl === this.url() && !this.value.discoveryComplete && ['DISCOVERING', 'PAUSED'].includes(this.value.stage)) return this.session();
+      if (!download && sameProject(this.initialUrl, this.url()) && !this.value.discoveryComplete && ['DISCOVERING', 'PAUSED'].includes(this.value.stage)) return this.session();
       throw new Error('A bulk operation is already active.');
     }
     if (!isFlowPage(this.url())) throw new Error('Open a project on https://flow.google.com/.');
@@ -26,9 +29,9 @@ export class BulkAutomation {
     // The worker validates the actual destination before arming any browser download.
     if (typeof folder !== 'string' || folder.length > 180) throw new Error('Invalid download folder.');
     if (download && this.doc.querySelector('flow-tile-container.selected')) throw new Error('Capture the selected image list, then clear selection in Flow before starting downloads.');
-    const preparedSelection = download && scope === 'selected' && this.value.settings.scope === 'selected' && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
+    const preparedSelection = download && scope === 'selected' && this.value.settings.scope === 'selected' && this.value.stage === 'READY' && this.value.discoveryComplete && sameProject(this.initialUrl, this.url());
     const selected = scope === 'selected' ? (preparedSelection ? this.value.assets.map(asset => ({ ...asset })) : selectedAssets(this.doc)) : undefined;
-    const reuse = scope === 'all' && this.value.settings.scope !== 'selected' && download && this.value.stage === 'READY' && this.value.discoveryComplete && this.initialUrl === this.url();
+    const reuse = scope === 'all' && this.value.settings.scope !== 'selected' && download && this.value.stage === 'READY' && this.value.discoveryComplete && sameProject(this.initialUrl, this.url());
     const assets = selected ?? (reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : []);
     this.abort = new AbortController(); this.initialUrl = this.url();
     this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: selected ? (download ? 'RUNNING' : 'READY') : reuse ? 'RUNNING' : 'DISCOVERING', assets, active: !selected || download, pauseRequested: false, discoveryComplete: reuse || !!selected,
@@ -44,7 +47,7 @@ export class BulkAutomation {
   cancel() { this.abort?.abort(new Error('Bulk operation cancelled. Existing browser downloads and files are preserved.')); return this.session(); }
   retry(): BulkSession {
     if (this.value.active) throw new Error('Finish or cancel the current queue first.');
-    if (this.initialUrl !== this.url() || !isFlowPage(this.url())) throw new Error('Flow project changed. Refresh the image collection before retrying.');
+    if (!sameProject(this.initialUrl, this.url()) || !isFlowPage(this.url())) throw new Error('Flow project changed. Refresh the image collection before retrying.');
     if (!this.value.discoveryComplete) throw new Error('Complete asset discovery before retrying.');
     const failed = this.value.assets.filter(asset => asset.status === 'failed');
     if (!failed.length) throw new Error('There are no failed images to retry.');
@@ -55,7 +58,7 @@ export class BulkAutomation {
     return this.session();
   }
   private checkPage() {
-    if (this.url() !== this.initialUrl || !isFlowPage(this.url())) throw new Error('Flow project changed. Bulk operation stopped.');
+    if (!sameProject(this.initialUrl, this.url()) || !isFlowPage(this.url())) throw new ProjectChanged('Flow project changed. Bulk operation stopped.');
   }
   private async checkpoint(signal: AbortSignal) {
     signal.throwIfAborted(); this.checkPage();
@@ -87,7 +90,7 @@ export class BulkAutomation {
     await sequentialQueue(pending, this.value.settings.retries, signal, () => this.checkpoint(signal),
       (asset, attempt) => this.processAsset(asset, attempt, signal),
       (asset, error) => { asset.status = 'failed'; asset.error = error instanceof Error ? error.message : 'Image operation failed.'; },
-      error => !(error instanceof FlowControlsUnavailable) && !(error instanceof DownloadFailure && !error.retrySafe) && this.url() === this.initialUrl,
+      error => !(error instanceof ProjectChanged) && !(error instanceof FlowControlsUnavailable) && !(error instanceof DownloadFailure && !error.retrySafe) && sameProject(this.initialUrl, this.url()),
       () => delay(DISCOVERY.settle, signal));
     this.value.stage = 'COMPLETED'; this.value.currentId = undefined; this.value.currentStage = undefined;
   }
