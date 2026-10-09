@@ -1,3 +1,4 @@
+import { directDownload } from './direct-download';
 import { sameProject } from '../shared/project-location';
 import { isDownloadQuality, type DownloadQuality } from '../shared/download-quality';
 import { FlowDOMAdapter, FlowControlsUnavailable } from './flow-adapter';
@@ -12,7 +13,7 @@ import type { DownloadScope } from '../shared/selection-types';
 class ProjectChanged extends Error {}
 
 export class BulkAutomation {
-  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
+  private value: BulkSession = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, directDownloadSupport: 1, discoverySupport: 2, stage: 'IDLE', assets: [], pauseRequested: false, active: false, discoveryComplete: false, settings: { retries: 2, debug: false, scope: 'all' } };
   private abort?: AbortController;
   private initialUrl = '';
   constructor(private doc: Document, private adapter: FlowDOMAdapter, private url: () => string) {}
@@ -28,13 +29,12 @@ export class BulkAutomation {
     if (!Number.isInteger(retries) || retries < 0 || retries > 2) throw new Error('Retry count must be 0, 1, or 2.');
     // The worker validates the actual destination before arming any browser download.
     if (typeof folder !== 'string' || folder.length > 180) throw new Error('Invalid download folder.');
-    if (download && this.doc.querySelector('flow-tile-container.selected')) throw new Error('Capture the selected image list, then clear selection in Flow before starting downloads.');
     const preparedSelection = download && scope === 'selected' && this.value.settings.scope === 'selected' && this.value.stage === 'READY' && this.value.discoveryComplete && sameProject(this.initialUrl, this.url());
     const selected = scope === 'selected' ? (preparedSelection ? this.value.assets.map(asset => ({ ...asset })) : selectedAssets(this.doc)) : undefined;
     const reuse = scope === 'all' && this.value.settings.scope !== 'selected' && download && this.value.stage === 'READY' && this.value.discoveryComplete && sameProject(this.initialUrl, this.url());
     const assets = selected ?? (reuse ? this.value.assets.map(asset => ({ ...asset, status: 'queued' as const, attempts: 0, error: undefined, download: undefined })) : []);
     this.abort = new AbortController(); this.initialUrl = this.url();
-    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, discoverySupport: 2, stage: selected ? (download ? 'RUNNING' : 'READY') : reuse ? 'RUNNING' : 'DISCOVERING', assets, active: !selected || download, pauseRequested: false, discoveryComplete: reuse || !!selected,
+    this.value = { protocol: 1, folderSupport: 1, selectionCaptureSupport: 1, selectedDownloadSupport: 1, qualitySupport: 1, directDownloadSupport: 1, discoverySupport: 2, stage: selected ? (download ? 'RUNNING' : 'READY') : reuse ? 'RUNNING' : 'DISCOVERING', assets, active: !selected || download, pauseRequested: false, discoveryComplete: reuse || !!selected,
       startedAt: new Date().toISOString(), settings: { retries, debug, scope, quality, ...(download ? { folder } : {}) } };
     if (selected && !download) { this.finish(); return this.session(); }
     if (selected) for (const asset of assets) asset.status = 'queued';
@@ -99,9 +99,7 @@ export class BulkAutomation {
     asset.attempts = attempt; asset.status = 'processing'; asset.error = undefined; asset.download = undefined;
     this.value.currentStage = undefined;
     try {
-      const image = await reacquireAsset(this.doc, asset, signal, () => this.checkPage()); this.checkPage();
-      const key = this.adapter.bindImage(image);
-      asset.download = await downloadImage(this.adapter, key, `bulk-image-${asset.index}`, signal, (stage, download) => {
+      asset.download = await directDownload(asset.id, asset.index, this.url(), signal, (stage, download) => {
         this.value.currentStage = stage;
         if (stage === 'WAITING_FOR_DOWNLOAD') asset.status = 'downloading';
         if (download) asset.download = download;
@@ -112,7 +110,7 @@ export class BulkAutomation {
       if (signal.aborted) throw error;
       this.checkPage(); asset.error = error instanceof Error ? error.message : 'Image operation failed.';
       if (error instanceof DownloadFailure && !error.retrySafe) {
-        asset.status = 'failed'; throw new DownloadFailure(`${asset.label}: ${asset.error} Tracking is uncertain; the queue stopped to avoid assigning a late download to another image. Check Downloads before retrying.`, false);
+        asset.status = 'failed'; throw new DownloadFailure(`${asset.label}: ${asset.error} Export stopped. Check Downloads before retrying.`, false);
       }
       throw error;
     }

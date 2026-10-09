@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Flow Bulk Downloader",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "minimum_chrome_version": "116",
-  "description": "Automatically discover Flow project images and download them sequentially as 2K through the normal UI.",
+  "description": "Export selected or all Flow images with direct upscaling and tracked browser downloads.",
   "optional_permissions": [
     "downloads"
   ],

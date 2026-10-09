@@ -15,7 +15,7 @@ export function exportStatus(stage: BulkStage, failed: number, skipped: number, 
 }
 export function operationLabel(stage?: SingleStage) {
   const labels: Partial<Record<SingleStage, string>> = { OPENING_MENU: 'Opening image menu', OPENING_DOWNLOAD_MENU: 'Opening download options',
-    SELECTING_QUALITY: 'Waiting for the chosen quality', SELECTING_2K: 'Waiting for the 2K option', WAITING_FOR_DOWNLOAD: 'Waiting for browser download', COMPLETED: 'File saved' };
+    UPSCALING: 'Preparing the image in Flow', SELECTING_QUALITY: 'Waiting for the chosen quality', SELECTING_2K: 'Waiting for the 2K option', WAITING_FOR_DOWNLOAD: 'Waiting for browser download', COMPLETED: 'File saved' };
   return stage ? labels[stage] ?? 'Processing image' : 'Preparing image';
 }
 export function elapsedTime(start?: string, end?: string, now = Date.now()) {
