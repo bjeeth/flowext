@@ -37,7 +37,7 @@ it('exposes mutually exclusive scope toggles, prevents selected-to-all fallback,
     bulk.discoverySupport = 2;
     await expect(bulkCommand(12, 'start', 2, false, '', 'selected')).rejects.toThrow('No operation was sent');
     expect(sendMessage.mock.calls.some(([, message]) => message.type === 'FLOW_BULK')).toBe(false);
-    bulk.selectedDownloadSupport = 1;
+    bulk.selectedDownloadSupport = 1; bulk.directDownloadSupport = 1;
     await act(async () => { root.render(<BulkPanel tabId={12} session={{ ...bulk }} debug={false} buildVersion="0.5.2" onUpdate={() => {}} />); });
     expect(button('Download Selected as 2K').disabled).toBe(false);
     request.mockResolvedValue(false);

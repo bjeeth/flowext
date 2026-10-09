@@ -12,6 +12,7 @@ export interface BulkSession {
   discoverySupport?: 2;
   selectedDownloadSupport?: 1;
   qualitySupport?: 1;
+  directDownloadSupport?: 1;
   protocol: 1; stage: BulkStage; assets: FlowAsset[]; currentId?: string; currentStage?: SingleStage;
   pauseRequested: boolean; active: boolean; discoveryComplete: boolean;
   startedAt?: string; endedAt?: string; error?: string;

@@ -10,6 +10,7 @@ export async function bulkCommand(tabId: number, action: BulkCommand['action'], 
   if (current.session.bulk?.protocol !== 1) throw new Error('Refresh Flow after loading the bulk extension build.');
   if (['start', 'discover', 'retry'].includes(action) && current.session.bulk.discoverySupport !== 2) throw new Error('Refresh Flow to install the image discovery fix before starting or retrying. No operation was sent.');
   if (scope === 'selected' && ['start', 'discover', 'retry'].includes(action) && current.session.bulk.selectedDownloadSupport !== 1) throw new Error('Refresh Flow after loading the selected-download build. No operation was sent.');
+  if (['start', 'retry'].includes(action) && current.session.bulk.directDownloadSupport !== 1) throw new Error('Reload v0.6.0 and refresh Flow before exporting. No operation was sent.');
   if (folder && current.session.bulk.folderSupport !== 1) throw new Error('Refresh Flow after loading this build to enable destination folders.');
   if (quality !== '2k' && ['start', 'retry'].includes(action) && current.session.bulk.qualitySupport !== 1) throw new Error('Refresh Flow to enable quality selection. No operation was sent.');
   const reply = await chrome.tabs.sendMessage(tabId, { type: 'FLOW_BULK', action, retries, debug, folder, scope, ...(current.session.bulk.qualitySupport === 1 ? { quality } : {}) }) as BulkReply;
